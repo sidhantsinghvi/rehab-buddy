@@ -74,10 +74,9 @@ export function usePhyphoxDirect(initialHost = '') {
   const sp = useRef({
     // game signal processing
     smoothed: 0, initialized: false,
-    minAngle: -11, maxAngle: 11,
     repState: 'idle', repCount: 0, goodReps: 0,
     score: 0, repPeak: 0, lastRepQuality: 0, peakAngle: 0,
-    sessionStart: Date.now(), angleWindow: [],
+    sessionStart: Date.now(),
 
     // calibration
     restSamples: [],
@@ -86,6 +85,10 @@ export function usePhyphoxDirect(initialHost = '') {
     calibMax: -Infinity,
     calibReps: 0,
     inRep: false,
+
+    // set after calibration — used to orient progress correctly
+    curlRestValue: null,  // accY at rest (progress = 0)
+    curlTopValue: null,   // accY at top of curl (progress = 1)
 
     // limits (set after calibration)
     limits: null,
@@ -140,12 +143,18 @@ export function usePhyphoxDirect(initialHost = '') {
         setCalibReps(s.calibReps)
 
         if (s.calibReps >= CALIB_REPS_NEEDED) {
-          // Calibration complete — apply global safety bounds
           const safeMin = Math.max(s.calibMin, GLOBAL_MIN)
           const safeMax = Math.min(s.calibMax, GLOBAL_MAX)
-          const newLimits = { min: safeMin, max: safeMax }
-          s.limits = newLimits
-          setLimits(newLimits)
+          s.limits = { min: safeMin, max: safeMax }
+          setLimits(s.limits)
+
+          // Orient progress: rest=0, top of curl=1
+          // whichever extreme (calibMin or calibMax) is farther from rest is "top"
+          const distToMin = Math.abs(safeMin - s.restValue)
+          const distToMax = Math.abs(safeMax - s.restValue)
+          s.curlRestValue = s.restValue
+          s.curlTopValue = distToMin > distToMax ? safeMin : safeMax
+
           setCalibStatus('done')
         }
       }
@@ -220,20 +229,17 @@ export function usePhyphoxDirect(initialHost = '') {
   const processGame = useCallback((accY) => {
     const s = sp.current
 
-    // Auto-calibration of display range
-    s.angleWindow.push(accY)
-    if (s.angleWindow.length > 600) s.angleWindow.shift()
-    if (s.angleWindow.length >= 60) {
-      const mn = Math.min(...s.angleWindow)
-      const mx = Math.max(...s.angleWindow)
-      if (mn < s.minAngle - 3) s.minAngle = Math.max(-13, mn + 1)
-      if (mx > s.maxAngle + 3) s.maxAngle = Math.min(13, mx + 2)
-    }
-
     s.peakAngle = Math.max(s.peakAngle, Math.abs(accY))
 
-    const span = s.maxAngle - s.minAngle
-    const progress = span > 0 ? Math.max(0, Math.min(1, (accY - s.minAngle) / span)) : 0
+    // Use calibrated orientation: restValue→0, topValue→1
+    // Works regardless of which direction accY moves during curl
+    let progress
+    if (s.curlRestValue !== null && s.curlTopValue !== null) {
+      const range = s.curlTopValue - s.curlRestValue
+      progress = range !== 0 ? Math.max(0, Math.min(1, (accY - s.curlRestValue) / range)) : 0
+    } else {
+      progress = 0  // wait for calibration
+    }
 
     if (!s.initialized) { s.smoothed = progress; s.initialized = true }
     else s.smoothed += EMA_ALPHA * (progress - s.smoothed)
@@ -360,9 +366,10 @@ export function usePhyphoxDirect(initialHost = '') {
     s.smoothed = 0; s.initialized = false
     s.repState = 'idle'; s.repCount = 0; s.goodReps = 0
     s.score = 0; s.repPeak = 0; s.lastRepQuality = 0; s.peakAngle = 0
-    s.sessionStart = Date.now(); s.angleWindow = []
+    s.sessionStart = Date.now()
     s.lives = MAX_LIVES
     s.lastViolationTime = 0
+    // keep curlRestValue/curlTopValue/limits — calibration stays valid
     prevRepCount.current = 0
     setLives(MAX_LIVES)
     setViolation(null)
@@ -374,6 +381,7 @@ export function usePhyphoxDirect(initialHost = '') {
     s.restSamples = []; s.restValue = null
     s.calibMin = Infinity; s.calibMax = -Infinity
     s.calibReps = 0; s.inRep = false; s.limits = null
+    s.curlRestValue = null; s.curlTopValue = null
     setCalibReps(0)
     setCalibStatus('collecting_rest')
     setLimits(null)

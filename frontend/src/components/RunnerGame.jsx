@@ -5,12 +5,13 @@ const W = 600
 const H = 300
 const PLAYER_X = 100
 const PLAYER_R = 14
-const BASE_SPEED = 2.0
-const GAP_START = 150        // generous gap — forgiving for lag
-const GAP_MIN = 90
-const AMP = 75               // sine wave amplitude
-const FREQ = 0.018           // how tightly the corridor curves
-const HIT_COOLDOWN = 80      // frames of invincibility after hit (very forgiving)
+const BASE_SPEED = 2.5       // constant scroll speed — never increases
+const GAP_START = 150        // generous gap
+const GAP_MIN = 85
+const AMP = 55               // sine wave amplitude
+const FREQ_BASE = 0.007      // starting curve frequency (very gentle)
+const FREQ_MAX = 0.022       // max frequency after 200m
+const HIT_COOLDOWN = 90      // frames of invincibility after hit (very forgiving)
 
 export default function RunnerGame({ data, lives: calibLives, violation, onFinish, send }) {
   const canvasRef = useRef(null)
@@ -25,16 +26,15 @@ export default function RunnerGame({ data, lives: calibLives, violation, onFinis
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
 
-    // Build initial corridor array — one {top, bot} per pixel column
+    // Build initial corridor — phase goes from 0 to (W+60)*FREQ_BASE
     const corridor = []
-    const gap = GAP_START
     for (let i = 0; i < W + 60; i++) {
-      const cy = H / 2 + Math.sin(i * FREQ) * AMP
-      corridor.push({ top: cy - gap / 2, bot: cy + gap / 2 })
+      const cy = H / 2 + Math.sin(i * FREQ_BASE) * AMP
+      corridor.push({ top: cy - GAP_START / 2, bot: cy + GAP_START / 2 })
     }
 
     const g = {
-      phase: 0,
+      phase: (W + 60) * FREQ_BASE,  // continue from where initial build left off
       frameCount: 0,
       distance: 0,
       speed: BASE_SPEED,
@@ -56,16 +56,17 @@ export default function RunnerGame({ data, lives: calibLives, violation, onFinis
     function loop() {
       if (g.over) return
       g.frameCount++
-      g.distance += g.speed / 60
-      g.speed = Math.min(BASE_SPEED + g.distance * 0.015, 5.5)
+      g.distance += BASE_SPEED / 60  // speed is constant — distance only
 
-      // Shrink gap slowly as score increases
-      const gap = Math.max(GAP_MIN, GAP_START - g.distance * 0.8)
+      // Curve frequency increases after 100m, gap shrinks after 100m
+      const over100 = Math.max(0, g.distance - 100)
+      const curveFreq = Math.min(FREQ_BASE + over100 * 0.00025, FREQ_MAX)
+      const gap = Math.max(GAP_MIN, GAP_START - over100 * 0.5)
 
-      // Shift corridor left, add new column on right
+      // Shift corridor left, add new column on right (phase advances by freq * scroll)
       corridor.shift()
-      g.phase += FREQ * g.speed
-      const cy = H / 2 + Math.sin(g.phase + (W + 60) * FREQ) * AMP
+      g.phase += curveFreq * BASE_SPEED
+      const cy = H / 2 + Math.sin(g.phase) * AMP
       corridor.push({ top: cy - gap / 2, bot: cy + gap / 2 })
 
       const py = playerY()
@@ -165,7 +166,7 @@ export default function RunnerGame({ data, lives: calibLives, violation, onFinis
       ctx.textAlign = 'left'
       ctx.fillText(`${Math.floor(g.distance)}m`, 14, 24)
       ctx.textAlign = 'center'
-      ctx.fillText(`gap: ${Math.round(gap)}px`, W / 2, 24)
+      ctx.fillText(g.distance < 100 ? 'Stay in the corridor!' : `Level ${Math.ceil((g.distance-100)/50)+2}`, W / 2, 24)
       ctx.textAlign = 'right'
       ctx.fillText(['❤️','❤️','❤️'].map((_, i) => i < g.lives ? '❤️' : '🖤').join(''), W - 12, 24)
 

@@ -28,3 +28,14 @@
 .gs-icon { font-size: 48px; }
 .gs-card-title { font-size: 18px; font-weight: 700; color: #e8eaf0; }
 .gs-card-desc { font-size: 13px; color: #8b92a5; text-align: center; line-height: 1.5; }
+.gs-back {
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid #2a2f3d;
+  color: #8b92a5;
+  padding: 10px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.gs-back:hover { border-color: #4c9be8; color: #e8eaf0; }

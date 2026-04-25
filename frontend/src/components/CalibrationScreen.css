@@ -122,6 +122,13 @@
   font-family: monospace;
 }
 
+.calib-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .calib-btn {
   width: 100%;
   padding: 16px;
@@ -139,4 +146,20 @@
   background: #2a2f3d;
   color: #555;
   cursor: not-allowed;
+}
+
+.calib-skip-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #3a4255;
+  background: #1a2030;
+  color: #a8b4cc;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.calib-skip-btn:hover {
+  border-color: #4c9be8;
+  color: #d5e8ff;
 }

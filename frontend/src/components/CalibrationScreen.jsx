@@ -1,34 +1,60 @@
 import './CalibrationScreen.css'
 
-export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, limits, onDone }) {
+const COPY = {
+  bicep: {
+    icon: '💪',
+    title: 'Calibrate — Bicep Curls',
+    instruction: <>Do <strong>2 slow, comfortable curls</strong> at your full safe range.<br />This sets the boundaries the game will enforce.</>,
+    restHint: 'Hold your arm at rest…',
+    repNoun: 'curl',
+    axisLabel: 'accY',
+    skipLabel: 'Skip (Use max test range)',
+  },
+  lateral: {
+    icon: '🪽',
+    title: 'Calibrate — Lateral Raises',
+    instruction: <>Do <strong>2 slow lateral raises</strong> — lift to shoulder height, then lower.<br />This sets your safe Z-axis range.</>,
+    restHint: 'Hold your arm down at your side…',
+    repNoun: 'raise',
+    axisLabel: 'accZ',
+    skipLabel: 'Skip (Use approx range)',
+  },
+}
+
+export default function CalibrationScreen({
+  exercise = 'bicep',
+  calibReps,
+  calibStatus,
+  calibAccY,
+  limits,
+  onDone,
+  onSkip,
+  onBack,
+}) {
+  const copy = COPY[exercise] ?? COPY.bicep
   const pct = Math.round(((calibAccY + 13) / 26) * 100)
   const barPct = Math.max(2, Math.min(98, pct))
 
   return (
     <div className="calib-root">
       <div className="calib-card">
-        <div className="calib-logo">🦾</div>
-        <h1 className="calib-title">Set Your Limits</h1>
-        <p className="calib-subtitle">
-          Do <strong>2 slow, comfortable curls</strong> at your full safe range.<br />
-          This sets the boundaries the game will enforce.
-        </p>
+        <div className="calib-logo">{copy.icon}</div>
+        <h1 className="calib-title">{copy.title}</h1>
+        <p className="calib-subtitle">{copy.instruction}</p>
 
-        {/* Live accY bar */}
         <div className="calib-bar-wrap">
           <div className="calib-bar-track">
             <div className="calib-bar-fill" style={{ height: `${barPct}%` }} />
           </div>
-          <div className="calib-bar-label">{calibAccY.toFixed(1)}</div>
+          <div className="calib-bar-label">{copy.axisLabel}: {calibAccY.toFixed(1)}</div>
         </div>
 
-        {/* Status */}
         <div className="calib-status">
           {calibStatus === 'collecting_rest' && (
-            <span className="calib-hint">Hold your arm at rest…</span>
+            <span className="calib-hint">{copy.restHint}</span>
           )}
           {calibStatus === 'ready' && calibReps === 0 && (
-            <span className="calib-hint">Ready — start your first curl</span>
+            <span className="calib-hint">Ready — start your first {copy.repNoun}</span>
           )}
           {calibStatus === 'ready' && calibReps === 1 && (
             <span className="calib-hint">Rep 1 done — do one more</span>
@@ -38,7 +64,6 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
           )}
         </div>
 
-        {/* Rep dots */}
         <div className="calib-dots">
           {[0, 1].map(i => (
             <div key={i} className={`calib-dot ${calibReps > i ? 'calib-dot--done' : ''}`} />
@@ -54,13 +79,21 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
           </div>
         )}
 
-        <button
-          className="calib-btn"
-          disabled={calibStatus !== 'done'}
-          onClick={onDone}
-        >
-          {calibStatus === 'done' ? 'Start Session →' : `${calibReps}/2 reps…`}
-        </button>
+        <div className="calib-actions">
+          <button
+            className="calib-btn"
+            disabled={calibStatus !== 'done'}
+            onClick={onDone}
+          >
+            {calibStatus === 'done' ? 'Continue →' : `${calibReps}/2 reps…`}
+          </button>
+          <button className="calib-skip-btn" onClick={onSkip}>
+            {copy.skipLabel}
+          </button>
+          {onBack && (
+            <button className="calib-skip-btn" onClick={onBack}>← Back</button>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // Current phyphox target — updated at runtime via POST /set-phyphox-host
-let phyphoxTarget = `http://${process.env.PHYPHOX_HOST || '10.30.227.143'}`
+let phyphoxTarget = `http://${process.env.PHYPHOX_HOST || '172.20.10.1'}`
 
 export default defineConfig({
   plugins: [

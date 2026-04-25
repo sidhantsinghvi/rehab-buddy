@@ -1,0 +1,95 @@
+.lg-root {
+  min-height: 100vh;
+  background: #0d0f14;
+  color: #e8eaf0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  gap: 12px;
+}
+.lg-head {
+  width: 100%;
+  max-width: 920px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.lg-head h1 { margin: 0; font-size: 22px; }
+.lg-time { color: #8b92a5; font-size: 14px; }
+
+.lg-stats {
+  width: 100%;
+  max-width: 920px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.lg-stat {
+  background: #161a22;
+  border: 1px solid #2a2f3d;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: #8b92a5;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.lg-stat strong { color: #e8eaf0; font-size: 16px; }
+
+.lg-canvas-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 920px;
+  background: #0a0c11;
+  border: 1px solid #2a2f3d;
+  border-radius: 16px;
+  overflow: hidden;
+}
+.lg-canvas { display: block; width: 100%; height: auto; }
+
+.lg-flash {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(76, 155, 232, 0.18);
+  border: 1px solid #4c9be8;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  pointer-events: none;
+  animation: lg-pop 0.6s ease;
+}
+@keyframes lg-pop {
+  0%   { transform: translateX(-50%) scale(0.6); opacity: 0; }
+  20%  { transform: translateX(-50%) scale(1.1); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1.0); opacity: 0; }
+}
+
+.lg-actions { display: flex; gap: 10px; }
+.lg-btn {
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid #2a2f3d;
+  background: #161a22;
+  color: #e8eaf0;
+}
+.lg-btn--primary { background: #4c9be8; border-color: #4c9be8; color: #0d0f14; font-weight: 700; }
+.lg-btn--ghost   { background: transparent; color: #8b92a5; }
+.lg-btn:hover { transform: translateY(-1px); }
+
+.lg-violation {
+  background: rgba(232, 76, 76, 0.12);
+  border: 1px solid #e84c4c;
+  color: #ffb8b8;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.lg-hint { color: #8b92a5; font-size: 13px; }

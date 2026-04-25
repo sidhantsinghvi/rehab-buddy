@@ -1,7 +1,9 @@
 import './CalibrationScreen.css'
 
 export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, limits, onDone, onSkip, exercise = 'bicep' }) {
-  const pct = Math.round(((calibAccY + 13) / 26) * 100)
+  const pct = exercise === 'lateral'
+    ? Math.round((-calibAccY / 20) * 100)          // accZ=0 → 0%, accZ=-20 → 100%
+    : Math.round(((calibAccY + 13) / 26) * 100)
   const barPct = Math.max(2, Math.min(98, pct))
 
   return (
@@ -19,7 +21,9 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
           <div className="calib-bar-track">
             <div className="calib-bar-fill" style={{ height: `${barPct}%` }} />
           </div>
-          <div className="calib-bar-label">{calibAccY.toFixed(1)}</div>
+          {exercise !== 'lateral' && (
+            <div className="calib-bar-label">{calibAccY.toFixed(1)}</div>
+          )}
         </div>
 
         {/* Status */}
@@ -28,7 +32,7 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
             <span className="calib-hint">Hold your arm at rest…</span>
           )}
           {calibStatus === 'ready' && calibReps === 0 && (
-            <span className="calib-hint">Ready — start your first curl</span>
+            <span className="calib-hint">Ready — start your first {exercise === 'tricep' ? 'extension' : exercise === 'lateral' ? 'raise' : 'curl'}</span>
           )}
           {calibStatus === 'ready' && calibReps === 1 && (
             <span className="calib-hint">Rep 1 done — do one more</span>

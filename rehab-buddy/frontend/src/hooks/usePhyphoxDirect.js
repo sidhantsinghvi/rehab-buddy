@@ -268,6 +268,9 @@ export function usePhyphoxDirect(initialHost = '') {
           ? Math.max(0, Math.min(1, (accZ - lo) / range))
           : Math.max(0, Math.min(1, (hi - accZ) / range))
       }
+    } else {
+      // fallback: rest≈0, top≈-20 (accZ goes negative on raise)
+      lateralProgress = Math.max(0, Math.min(1, -accZ / 20))
     }
 
     // Rep state machine (bicep & tricep only — lateral games handle their own reps)
@@ -422,8 +425,8 @@ export function usePhyphoxDirect(initialHost = '') {
     if (exerciseRef.current === 'lateral') {
       const currentZ = Number.isFinite(s.prevAccZ) ? s.prevAccZ : 0
       s.lateralRestZ = currentZ
-      s.lateralTopZ = currentZ - 6
-      setLimits({ min: Math.min(s.lateralTopZ, s.lateralRestZ), max: Math.max(s.lateralTopZ, s.lateralRestZ) })
+      s.lateralTopZ = currentZ - 20
+      setLimits({ min: s.lateralTopZ, max: currentZ })
     } else {
       const restVal = Number.isFinite(s.prevAccY) ? s.prevAccY : 0
       const distToMin = Math.abs(GLOBAL_MIN - restVal)

@@ -91,7 +91,7 @@ export function usePhyphoxDirect(initialHost = '') {
     lateralRestSamples: [], lateralRestZ: null, lateralTopZ: null,
     lateralCalibMinZ: Infinity, lateralCalibMaxZ: -Infinity,
     lateralCalibReps: 0, lateralInRep: false,
-    lateralDirCaptured: false, lateralTopIsMaxZ: true,
+    lateralDirCaptured: false, lateralTopIsMaxZ: false,
 
     // speed tracking
     prevAccY: null, prevAccZ: null, prevTime: null,
@@ -193,10 +193,6 @@ export function usePhyphoxDirect(initialHost = '') {
       }
     } else {
       if (deviation > REP_START_DEVIATION) {
-        if (!s.lateralDirCaptured) {
-          s.lateralDirCaptured = true
-          s.lateralTopIsMaxZ = off > 0
-        }
         s.lateralInRep = true
         s.lateralCalibMinZ = Math.min(s.lateralCalibMinZ, accZ)
         s.lateralCalibMaxZ = Math.max(s.lateralCalibMaxZ, accZ)
@@ -416,7 +412,7 @@ export function usePhyphoxDirect(initialHost = '') {
     s.lateralRestSamples = []; s.lateralRestZ = null; s.lateralTopZ = null
     s.lateralCalibMinZ = Infinity; s.lateralCalibMaxZ = -Infinity
     s.lateralCalibReps = 0; s.lateralInRep = false
-    s.lateralDirCaptured = false; s.lateralTopIsMaxZ = true
+    s.lateralDirCaptured = false; s.lateralTopIsMaxZ = false
     setCalibReps(0); setCalibStatus('collecting_rest'); setLimits(null)
     setGamePhase('calibrating')
   }, [])

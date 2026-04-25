@@ -2,7 +2,7 @@ import { useState } from 'react'
 import './Setup.css'
 
 export default function Setup({ onStart }) {
-  const [host, setHost] = useState('10.30.227.143')
+  const [host, setHost] = useState('172.20.10.1')
   const [step, setStep] = useState('config')
 
   function handleContinue() {

@@ -49,3 +49,54 @@
 .bball-bottom { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .bball-hint   { color: #8b92a5; font-size: 13px; text-align: center; }
 .bball-actions { display: flex; gap: 10px; }
+
+.bball-canvas-wrap {
+  position: relative;
+  display: inline-block;
+}
+.bball-countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 16px;
+  pointer-events: none;
+  z-index: 5;
+}
+.bball-countdown {
+  font-size: 160px;
+  font-weight: 900;
+  color: #00d4ff;
+  text-shadow: 0 0 40px rgba(0, 212, 255, 0.8), 0 4px 20px rgba(0, 0, 0, 0.6);
+  font-family: -apple-system, system-ui, sans-serif;
+  animation: countdown-pop 0.8s cubic-bezier(.2,1.2,.4,1) both;
+}
+.bball-countdown--go {
+  font-size: 120px;
+  color: #00e676;
+  text-shadow: 0 0 60px rgba(0, 230, 118, 0.9), 0 4px 20px rgba(0, 0, 0, 0.6);
+  letter-spacing: 4px;
+  animation: countdown-go 0.5s cubic-bezier(.2,1.2,.4,1) both;
+}
+.bball-countdown-sub {
+  margin-top: 12px;
+  color: #8b92a5;
+  font-size: 14px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+@keyframes countdown-pop {
+  0%   { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+  35%  { transform: scale(1.15) rotate(2deg); opacity: 1; }
+  60%  { transform: scale(1) rotate(0deg);    opacity: 1; }
+  100% { transform: scale(0.85);              opacity: 0; }
+}
+@keyframes countdown-go {
+  0%   { transform: scale(0.4); opacity: 0; }
+  30%  { transform: scale(1.4); opacity: 1; }
+  60%  { transform: scale(1);   opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}

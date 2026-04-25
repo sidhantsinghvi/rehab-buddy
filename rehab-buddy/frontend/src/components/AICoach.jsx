@@ -90,7 +90,9 @@ Return ONLY valid JSON, no extra text:
       }
 
       const json = await res.json()
-      const text = json.content?.[0]?.text ?? ''
+      const raw = json.content?.[0]?.text ?? ''
+      // Strip markdown code fences if model wraps response
+      const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
       const parsed = JSON.parse(text)
       if (!['bicep', 'tricep', 'lateral'].includes(parsed.exercise)) throw new Error('Unexpected response')
 

@@ -68,7 +68,7 @@ export default function AICoach({ onSelect, onBack }) {
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: JSON.stringify({
-          model: 'claude-3-7-sonnet-20250219',
+          model: 'claude-haiku-4-5-20251001',
           max_tokens: 150,
           system: `You are a rehab exercise advisor for RehabBuddy, a physiotherapy game app.
 Based on the user's description of their injury or exercise goal, choose exactly one exercise type.

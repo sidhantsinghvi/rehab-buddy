@@ -12,7 +12,7 @@ const BALL_SPEED_BASE = 4.5
 const AI_SPEED = 3.2
 const MAX_SCORE = 7   // first to 7 wins
 
-export default function PongGame({ data, lives: calibLives, violation, onFinish }) {
+export default function PongGame({ data, lives: calibLives, violation, onFinish, onBack }) {
   const canvasRef = useRef(null)
   const dataRef = useRef(data)
   const [playerScore, setPlayerScore] = useState(0)
@@ -218,9 +218,12 @@ export default function PongGame({ data, lives: calibLives, violation, onFinish 
             ? `Final score: You ${playerScore} – ${aiScore} CPU`
             : 'Extend to move your paddle up — first to 7 wins'}
         </div>
-        <button className="p-btn p-btn--primary" onClick={onFinish}>
-          {done ? 'See Summary' : 'Finish'}
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="p-btn" style={{ background: '#1e2330', color: '#8b92a5' }} onClick={onBack}>← Back</button>
+          <button className="p-btn p-btn--primary" onClick={onFinish}>
+            {done ? 'See Summary' : 'Finish'}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -62,7 +62,5 @@
 
 .a-btn:hover { opacity: 0.85; }
 
-.a-btn--primary {
-  background: #4c9be8;
-  color: #fff;
-}
+.a-btn--ghost  { background: #1e2330; color: #8b92a5; }
+.a-btn--primary { background: #4c9be8; color: #fff; }

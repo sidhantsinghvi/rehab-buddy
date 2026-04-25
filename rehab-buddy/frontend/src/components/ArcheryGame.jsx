@@ -27,7 +27,7 @@ function ringColor(i, total) {
   return colors[i] ?? '#2ecc71'
 }
 
-export default function ArcheryGame({ data, lives: calibLives, violation, onFinish }) {
+export default function ArcheryGame({ data, lives: calibLives, violation, onFinish, onBack }) {
   const canvasRef = useRef(null)
   const dataRef = useRef(data)
   const [score, setScore] = useState(0)
@@ -319,6 +319,7 @@ export default function ArcheryGame({ data, lives: calibLives, violation, onFini
             : 'Extend your arm to aim — hold steady for ~1s to auto-fire'}
         </div>
         <div className="archery-actions">
+          <button className="a-btn a-btn--ghost" onClick={onBack}>← Back</button>
           <button className="a-btn a-btn--primary" onClick={onFinish}>
             {done ? 'See Summary' : 'Finish'}
           </button>

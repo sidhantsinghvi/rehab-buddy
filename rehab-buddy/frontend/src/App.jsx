@@ -61,7 +61,9 @@ export default function App() {
 
   if (screen === 'setup') return <Setup onStart={handleSetupDone} />
 
-  if (screen === 'exerciseSelect') return <ExerciseSelect onSelect={handleExerciseSelect} />
+  if (screen === 'exerciseSelect') return (
+    <ExerciseSelect onSelect={handleExerciseSelect} onBack={() => setScreen('setup')} />
+  )
 
   if (screen === 'calibration') return (
     <CalibrationScreen
@@ -72,23 +74,28 @@ export default function App() {
       exercise={exercise}
       onDone={handleCalibrationDone}
       onSkip={() => { skipCalibration(); handleCalibrationDone() }}
+      onBack={() => setScreen('exerciseSelect')}
     />
   )
 
-  if (screen === 'select') return <GameSelect onSelect={setScreen} exercise={exercise} />
-  if (screen === 'summary') return <SessionSummary data={finalData} onRestart={handleRestart} />
+  if (screen === 'select') return (
+    <GameSelect onSelect={setScreen} exercise={exercise} onBack={() => setScreen('calibration')} />
+  )
+  if (screen === 'summary') return (
+    <SessionSummary data={finalData} onRestart={handleRestart} onBack={() => setScreen('select')} />
+  )
 
   if (screen === 'runner') return (
-    <RunnerGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+    <RunnerGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
   )
   if (screen === 'basketball') return (
-    <BasketballGame data={data} repFlash={repFlash} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+    <BasketballGame data={data} repFlash={repFlash} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
   )
   if (screen === 'pong') return (
-    <PongGame data={data} lives={lives} violation={violation} onFinish={handleFinish} />
+    <PongGame data={data} lives={lives} violation={violation} onFinish={handleFinish} onBack={() => setScreen('select')} />
   )
   if (screen === 'archery') return (
-    <ArcheryGame data={data} lives={lives} violation={violation} onFinish={handleFinish} />
+    <ArcheryGame data={data} lives={lives} violation={violation} onFinish={handleFinish} onBack={() => setScreen('select')} />
   )
   if (screen === 'tracker') return (
     <CurlGame
@@ -100,19 +107,20 @@ export default function App() {
       lives={lives}
       violation={violation}
       exercise={exercise}
+      onBack={() => setScreen('select')}
     />
   )
   if (screen === 'lateral-raise') return (
-    <LateralRaiseGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+    <LateralRaiseGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
   )
   if (screen === 'meteor-shield') return (
-    <MeteorShieldGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+    <MeteorShieldGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
   )
   if (screen === 'ring-pop') return (
-    <RingPopGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+    <RingPopGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
   )
   if (screen === 'wing-balance') return (
-    <WingBalanceGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+    <WingBalanceGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
   )
 
   return null

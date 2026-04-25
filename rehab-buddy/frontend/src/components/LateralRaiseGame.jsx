@@ -22,7 +22,7 @@ function scoreRaise(peak, holdMs, overRaised) {
   return { points: 2, label: 'Too shallow' }
 }
 
-export default function LateralRaiseGame({ data, lives, violation, onFinish, send }) {
+export default function LateralRaiseGame({ data, lives, violation, onFinish, send, onBack }) {
   const [reps, setReps] = useState(0)
   const [goodReps, setGoodReps] = useState(0)
   const [score, setScore] = useState(0)
@@ -165,6 +165,7 @@ export default function LateralRaiseGame({ data, lives, violation, onFinish, sen
         <div className="lr-feedback">{feedback}</div>
 
         <div className="lr-actions">
+          <button className="lr-btn lr-btn--ghost" onClick={onBack}>← Back</button>
           <button className="lr-btn lr-btn--ghost" onClick={() => send({ action: 'reset_session' })}>Reset</button>
           <button className="lr-btn lr-btn--primary" onClick={handleFinish}>Finish</button>
         </div>

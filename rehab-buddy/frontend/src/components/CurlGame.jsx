@@ -15,7 +15,7 @@ function formatTime(secs) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-export default function CurlGame({ data, repFlash, config = {}, send, onFinish, lives = 3, violation = null, exercise = 'bicep' }) {
+export default function CurlGame({ data, repFlash, config = {}, send, onFinish, lives = 3, violation = null, exercise = 'bicep', onBack }) {
   const [flashVisible, setFlashVisible] = useState(false)
   const [flashLabel, setFlashLabel] = useState(null)
   const [editingHost, setEditingHost] = useState(false)
@@ -194,6 +194,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
 
       {/* ── actions ── */}
       <div className="action-row">
+        <button className="btn btn-ghost" onClick={onBack}>← Back</button>
         <button className="btn btn-ghost" onClick={() => send({ action: 'reset_session' })}>
           Reset
         </button>

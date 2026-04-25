@@ -13,7 +13,7 @@ const FREQ_BASE = 0.007      // starting curve frequency (very gentle)
 const FREQ_MAX = 0.022       // max frequency after 200m
 const HIT_COOLDOWN = 90      // frames of invincibility after hit (very forgiving)
 
-export default function RunnerGame({ data, lives: calibLives, violation, onFinish, send }) {
+export default function RunnerGame({ data, lives: calibLives, violation, onFinish, send, onBack }) {
   const canvasRef = useRef(null)
   const dataRef = useRef(data)
   const [distance, setDistance] = useState(0)
@@ -196,6 +196,7 @@ export default function RunnerGame({ data, lives: calibLives, violation, onFinis
             : 'Stay between the lines — curl up to go higher, relax to go lower'}
         </div>
         <div className="runner-actions">
+          <button className="r-btn r-btn--ghost" onClick={onBack}>← Back</button>
           {!gameOver && (
             <button className="r-btn r-btn--ghost" onClick={() => send({ action: 'reset_session' })}>Reset</button>
           )}

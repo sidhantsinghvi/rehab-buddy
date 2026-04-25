@@ -24,7 +24,11 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(list\\(d.keys\\(\\)\\)\\); print\\(list\\(d.get\\('buffer',d\\).keys\\(\\)\\)\\)\")",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('status:', d.get\\('status'\\)\\); buf=d.get\\('buffer',{}\\); print\\('accZ sample:', buf.get\\('accZ',{}\\).get\\('buffer',[]\\)[-1]\\)\")",
       "Bash(.venv/bin/pip install *)",
-      "Bash(.venv/bin/pip show *)"
+      "Bash(.venv/bin/pip show *)",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git fetch *)"
     ]
   }
 }

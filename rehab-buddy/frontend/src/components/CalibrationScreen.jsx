@@ -1,6 +1,6 @@
 import './CalibrationScreen.css'
 
-export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, limits, onDone, onSkip, exercise = 'bicep' }) {
+export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, limits, onDone, onSkip, onBack, exercise = 'bicep' }) {
   const pct = exercise === 'lateral'
     ? Math.round((-calibAccY / 20) * 100)          // accZ=0 → 0%, accZ=-20 → 100%
     : Math.round(((calibAccY + 13) / 26) * 100)
@@ -8,6 +8,7 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
 
   return (
     <div className="calib-root">
+      <button className="back-btn" style={{ position: 'absolute', top: 20, left: 24 }} onClick={onBack}>← Back</button>
       <div className="calib-card">
         <div className="calib-logo">🦾</div>
         <h1 className="calib-title">Set Your Limits</h1>

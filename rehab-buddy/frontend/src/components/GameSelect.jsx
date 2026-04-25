@@ -69,10 +69,11 @@ const GAMES = {
   ],
 }
 
-export default function GameSelect({ onSelect, exercise = 'bicep' }) {
+export default function GameSelect({ onSelect, exercise = 'bicep', onBack }) {
   const games = GAMES[exercise] ?? GAMES.bicep
   return (
     <div className="gs-root">
+      <button className="back-btn" onClick={onBack}>← Back</button>
       <h1 className="gs-title">Choose Your Mode</h1>
       <p className="gs-sub">Your limits are set. Pick how you want to train.</p>
       <div className="gs-cards">

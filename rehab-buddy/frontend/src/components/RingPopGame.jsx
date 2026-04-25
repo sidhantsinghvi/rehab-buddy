@@ -27,7 +27,7 @@ function progressToY(p) {
   return bot - p * (bot - top)
 }
 
-export default function RingPopGame({ data, lives, violation, onFinish, send }) {
+export default function RingPopGame({ data, lives, violation, onFinish, send, onBack }) {
   const progress = Number(data?.lateral_progress) || 0
   const axisZ = Number(data?.raw_z) || 0
   const progressRef = useRef(0)
@@ -205,6 +205,7 @@ export default function RingPopGame({ data, lives, violation, onFinish, send }) 
       <div className="lg-hint">Raise your arm to align the popper with each ring as it crosses the right side.</div>
 
       <div className="lg-actions">
+        <button className="lg-btn lg-btn--ghost" onClick={onBack}>← Back</button>
         <button className="lg-btn lg-btn--ghost" onClick={() => send?.({ action: 'reset_session' })}>Reset</button>
         <button className="lg-btn lg-btn--primary" onClick={handleFinish}>Finish</button>
       </div>

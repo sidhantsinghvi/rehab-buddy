@@ -87,7 +87,7 @@ function handPos(progress) {
   }
 }
 
-export default function BasketballGame({ data, lives, violation, onFinish, send }) {
+export default function BasketballGame({ data, lives, violation, onFinish, send, onBack }) {
   const canvasRef = useRef(null)
 
   // React state only for things that drive HTML overlays. Everything else
@@ -752,6 +752,7 @@ export default function BasketballGame({ data, lives, violation, onFinish, send 
           {' '}Match the curl to the hoop's height.
         </div>
         <div className="bball-actions">
+          <button className="r-btn r-btn--ghost" onClick={onBack}>← Back</button>
           <button className="r-btn r-btn--ghost" onClick={() => send({ action: 'reset_session' })}>
             Reset
           </button>

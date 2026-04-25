@@ -1,8 +1,9 @@
 import './ExerciseSelect.css'
 
-export default function ExerciseSelect({ onSelect }) {
+export default function ExerciseSelect({ onSelect, onBack }) {
   return (
     <div className="ex-root">
+      <button className="back-btn" onClick={onBack}>← Back</button>
       <h1 className="ex-title">What are you training?</h1>
       <p className="ex-sub">Pick your exercise — each has its own calibration and games.</p>
       <div className="ex-cards">

@@ -17,6 +17,23 @@
   --font-body: 'Inter', system-ui, sans-serif;
 }
 
+/* ── Shared back button ──────────────────────────────────────────────── */
+.back-btn {
+  background: none;
+  border: none;
+  color: #5a7a9a;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 8px 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.15s;
+  align-self: flex-start;
+}
+.back-btn:hover { color: #e8eaf0; }
+
 html, body, #root {
   height: 100%;
   background: var(--bg);

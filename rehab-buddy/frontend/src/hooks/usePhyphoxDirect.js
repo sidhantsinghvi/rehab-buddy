@@ -449,11 +449,55 @@ export function usePhyphoxDirect(initialHost = '') {
 
   const setExercise = useCallback((name) => { setExerciseState(name) }, [])
 
+  // ── One-shot connection probe (used by Setup) ────────────────────────────
+  // Routes through the same Vite proxy as the live poll, so a successful
+  // probe means the live loop will work too. Returns a sample reading or
+  // throws an Error with a human message.
+  const probeConnection = useCallback(async (probeHost) => {
+    const target = probeHost || host
+    if (!target) throw new Error('Enter a phyphox IP first')
+
+    // Point the proxy at the candidate host before we hit it.
+    try {
+      await fetch('/set-phyphox-host', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: target }),
+      })
+    } catch {
+      throw new Error('Dev proxy not reachable — is the frontend running?')
+    }
+
+    let res
+    try {
+      res = await fetch('/phyphox/get?accX=full&accY=full&accZ=full', {
+        signal: AbortSignal.timeout(2500),
+      })
+    } catch {
+      throw new Error('No response from phyphox. Check the IP and that the experiment is running.')
+    }
+    if (!res.ok) throw new Error(`phyphox returned HTTP ${res.status}`)
+
+    const json = await res.json()
+    const status = json.status
+    if (typeof status === 'object' && status?.measuring === false) {
+      throw new Error('phyphox is connected but not measuring — press play in the app.')
+    }
+
+    const buf  = json.buffer ?? json
+    const accY = buf?.accY?.buffer?.at(-1)
+    const accZ = buf?.accZ?.buffer?.at(-1) ?? 0
+    if (accY == null) throw new Error('Connected but no acceleration data yet — wait a moment and retry.')
+
+    return { accY, accZ }
+  }, [host])
+
   return {
     data, repFlash, host, setHost, reset,
     gamePhase, startGame, resetCalibration, skipCalibration,
     calibReps, calibStatus, calibAccY, limits,
     lives, violation,
     exercise, setExercise,
+    probeConnection,
   }
 }

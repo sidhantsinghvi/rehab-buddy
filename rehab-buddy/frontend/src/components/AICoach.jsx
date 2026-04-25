@@ -1,107 +1,84 @@
 import { useState } from 'react'
-import './AICoach.css'
+import { motion, AnimatePresence } from 'framer-motion'
+
+const EASE = [0.32, 0.72, 0, 1]
 
 const THINKING_LINES = [
-  'Reading your situation…',
-  'Identifying affected muscle groups…',
-  'Checking exercise compatibility…',
-  'Analysing movement patterns…',
-  'Selecting optimal exercises…',
-  'Building your personalised plan…',
+  'Reading your situation',
+  'Identifying affected muscle groups',
+  'Checking exercise compatibility',
+  'Analysing movement patterns',
+  'Selecting an appropriate plan',
 ]
 
 const EXERCISE_GAMES = {
   bicep: [
-    { id: 'runner',     icon: '〰️', title: 'Corridor',    desc: 'Stay between the lines. Curl up to go higher, relax to go lower.' },
-    { id: 'basketball', icon: '🏀', title: 'Basketball',  desc: 'Aim the hoop with your curl. Lower your arm to shoot.' },
-    { id: 'tracker',    icon: '📊', title: 'Tracker',     desc: 'Classic rep counter. Score reps, track your form.' },
+    { id: 'runner',     title: 'Corridor',    desc: 'Stay between the lines. Curl up to rise, relax to lower.' },
+    { id: 'basketball', title: 'Basketball',  desc: 'Aim the hoop with your curl. Lower the arm to release.' },
+    { id: 'tracker',    title: 'Tracker',     desc: 'A clean rep counter for focused practice.' },
   ],
   tricep: [
-    { id: 'pong',    icon: '🏓', title: 'Pong',    desc: 'Control your paddle with your arm. First to 7 beats the CPU!' },
-    { id: 'archery', icon: '🏹', title: 'Archery', desc: 'Extend to aim at the target. Hold steady to auto-fire!' },
-    { id: 'tracker', icon: '📊', title: 'Tracker', desc: 'Classic rep counter. Score reps, track your form.' },
+    { id: 'pong',    title: 'Pong',    desc: 'Control your paddle by extending your arm. First to seven.' },
+    { id: 'archery', title: 'Archery', desc: 'Extend to aim. Hold steady to fire automatically.' },
+    { id: 'tracker', title: 'Tracker', desc: 'A clean rep counter for focused practice.' },
   ],
   lateral: [
-    { id: 'lateral-raise',  icon: '🎯', title: 'Tracker',        desc: 'Lift to band, hold, lower. Classic raise practice.' },
-    { id: 'meteor-shield',  icon: '☄️', title: 'Meteor Shield',  desc: 'Match the meteor height. Block incoming hits.' },
-    { id: 'ring-pop',       icon: '⭕', title: 'Ring Pop',       desc: 'Line up with floating rings. Pop them as they pass.' },
-    { id: 'wing-balance',   icon: '🕊️', title: 'Wing Balance',  desc: 'Hold inside a drifting band. Steady wins.' },
+    { id: 'lateral-raise',  title: 'Tracker',       desc: 'Lift to band height, hold, lower. The classic.' },
+    { id: 'meteor-shield',  title: 'Meteor Shield', desc: 'Match meteor heights to block incoming hits.' },
+    { id: 'ring-pop',       title: 'Ring Pop',      desc: 'Line up with floating rings as they pass.' },
+    { id: 'wing-balance',   title: 'Wing Balance',  desc: 'Hold inside a drifting band. Steady wins.' },
   ],
 }
 
 const EXERCISE_LABELS = {
-  bicep:   { name: 'Bicep Curl',        icon: '💪' },
-  tricep:  { name: 'Tricep Extension',  icon: '🦾' },
-  lateral: { name: 'Lateral Raises',    icon: '🪽' },
+  bicep:   { name: 'Bicep curl',        region: 'Elbow flexion',      accent: 'text-coral' },
+  tricep:  { name: 'Tricep extension',  region: 'Elbow extension',    accent: 'text-amber' },
+  lateral: { name: 'Lateral raises',    region: 'Shoulder abduction', accent: 'text-moss'  },
 }
 
 export default function AICoach({ onSelect, onBack }) {
-  const [step, setStep]             = useState('input')   // 'input' | 'thinking' | 'result'
+  const [step, setStep]             = useState('input')
   const [prompt, setPrompt]         = useState('')
-  const [apiKey, setApiKey]         = useState(() => localStorage.getItem('rehab_api_key') || '')
   const [thinkingLines, setThinkingLines] = useState([])
   const [result, setResult]         = useState(null)
   const [error, setError]           = useState(null)
   const [visibleCards, setVisibleCards]   = useState(0)
 
   async function handleSubmit() {
-    if (!prompt.trim() || !apiKey.trim()) return
-    localStorage.setItem('rehab_api_key', apiKey)
+    if (!prompt.trim()) return
     setStep('thinking')
     setThinkingLines([])
     setError(null)
 
-    // Thinking animation — lines appear one by one
     THINKING_LINES.forEach((line, i) => {
-      setTimeout(() => setThinkingLines(prev => [...prev, line]), i * 550)
+      setTimeout(() => setThinkingLines(prev => [...prev, line]), i * 600)
     })
 
-    const minWait = THINKING_LINES.length * 550 + 500
+    const minWait = THINKING_LINES.length * 600 + 600
 
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('/api/ai-coach', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey.trim(),
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 150,
-          system: `You are a rehab exercise advisor for RehabBuddy, a physiotherapy game app.
-Based on the user's description of their injury or exercise goal, choose exactly one exercise type.
-
-Available exercises:
-- "bicep"   → bicep curls (elbow flexion, forearm/bicep injuries, upper arm curling)
-- "tricep"  → tricep extensions (elbow extension, back-of-arm injuries, pushing movements)
-- "lateral" → lateral raises (shoulder injuries, deltoid strengthening, rotator cuff rehab, side raises)
-
-Return ONLY valid JSON, no extra text:
-{"exercise": "bicep"|"tricep"|"lateral", "reason": "one concise sentence explaining why"}`,
-          messages: [{ role: 'user', content: prompt }],
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt.trim() }),
       })
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error?.message || `HTTP ${res.status}`)
+        throw new Error(err.detail || `HTTP ${res.status}`)
       }
 
-      const json = await res.json()
-      const raw = json.content?.[0]?.text ?? ''
-      // Strip markdown code fences if model wraps response
-      const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-      const parsed = JSON.parse(text)
-      if (!['bicep', 'tricep', 'lateral'].includes(parsed.exercise)) throw new Error('Unexpected response')
+      const parsed = await res.json()
+      if (!['bicep', 'tricep', 'lateral'].includes(parsed.exercise)) {
+        throw new Error('Unexpected response')
+      }
 
       setTimeout(() => {
         setResult(parsed)
         setStep('result')
         setVisibleCards(0)
         const games = EXERCISE_GAMES[parsed.exercise]
-        games.forEach((_, i) => setTimeout(() => setVisibleCards(i + 1), i * 220 + 200))
+        games.forEach((_, i) => setTimeout(() => setVisibleCards(i + 1), i * 220 + 220))
       }, minWait)
 
     } catch (e) {
@@ -112,96 +89,166 @@ Return ONLY valid JSON, no extra text:
     }
   }
 
-  /* ── Thinking screen ─────────────────────────────────────────────────── */
+  /* ── Thinking ──────────────────────────────────────────────────────── */
   if (step === 'thinking') {
     return (
-      <div className="ai-root">
-        <div className="ai-thinking-wrap">
-          <div className="ai-thinking-icon">✨</div>
-          <h2 className="ai-thinking-title">Analysing your situation</h2>
-          <div className="ai-log">
-            {thinkingLines.map((line, i) => (
-              <div key={i} className="ai-log-line">
-                <span className="ai-log-arrow">▸</span>{line}
-              </div>
+      <div className="min-h-screen w-full flex items-center justify-center px-6 py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: EASE }}
+          className="card p-12 max-w-xl w-full"
+        >
+          <span className="eyebrow mb-8 inline-flex items-center gap-2">
+            <span className="heartbeat-dot" />
+            Working
+          </span>
+          <h2 className="display text-[34px] mb-10">
+            Thinking through<br />your <span className="display-italic text-signal">situation.</span>
+          </h2>
+          <ul className="space-y-3 font-mono text-[13.5px]">
+            <AnimatePresence>
+              {thinkingLines.map((line, i) => (
+                <motion.li
+                  key={i}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.5, ease: EASE }}
+                  className="flex items-center gap-3 text-inkSoft"
+                >
+                  <span className="w-3 h-px bg-signal" />
+                  {line}
+                </motion.li>
+              ))}
+            </AnimatePresence>
+            {thinkingLines.length < THINKING_LINES.length && (
+              <li className="flex items-center gap-3 text-inkMute">
+                <span className="w-1.5 h-1.5 rounded-full bg-inkMute animate-pulse-quiet" />
+                <span className="opacity-60">…</span>
+              </li>
+            )}
+          </ul>
+        </motion.div>
+      </div>
+    )
+  }
+
+  /* ── Result ────────────────────────────────────────────────────────── */
+  if (step === 'result' && result) {
+    const games = EXERCISE_GAMES[result.exercise]
+    const label = EXERCISE_LABELS[result.exercise]
+    return (
+      <div className="min-h-screen w-full px-6 py-12">
+        <div className="max-w-5xl mx-auto">
+          <button className="back-btn mb-12" onClick={onBack}>← Back</button>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: EASE }}
+            className="mb-14 max-w-2xl"
+          >
+            <span className="eyebrow mb-4 inline-flex items-center gap-2">
+              <span className="live-dot" />
+              AI recommendation
+            </span>
+            <div className={`text-[13px] mt-2 mb-3 tracking-widest uppercase ${label.accent}`}>{label.region}</div>
+            <h1 className="display text-[56px] sm:text-[68px] leading-[1.0]">{label.name}</h1>
+            <p className="mt-5 text-inkSoft text-[17px] leading-relaxed">{result.reason}</p>
+          </motion.div>
+
+          <div className="rule mb-8" />
+          <p className="eyebrow mb-6">Choose a mode</p>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-[color:var(--line)] border border-[color:var(--line)] rounded-2xl overflow-hidden">
+            {games.map((g, i) => (
+              <motion.button
+                key={g.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={i < visibleCards ? { opacity: 1, y: 0 } : {}}
+                transition={{ duration: 0.7, ease: EASE }}
+                onClick={() => onSelect(result.exercise, g.id)}
+                className="group relative text-left bg-surface/70 backdrop-blur-md p-7 transition-all duration-700 ease-apple hover:bg-surface2/90"
+              >
+                <div className="absolute top-0 left-0 h-[2px] bg-signal w-0 group-hover:w-full transition-all duration-700 ease-apple" />
+                <div className="flex items-center justify-between mb-10">
+                  <span className="num text-inkMute tabular-nums">0{i + 1}</span>
+                  <span className="text-[13px] text-inkMute opacity-0 group-hover:opacity-100 transition-opacity duration-700 ease-apple">
+                    Begin →
+                  </span>
+                </div>
+                <h3 className="display text-[24px] mb-2">{g.title}</h3>
+                <p className="text-inkSoft text-[14px] leading-relaxed">{g.desc}</p>
+              </motion.button>
             ))}
-            <span className="ai-cursor">▌</span>
           </div>
         </div>
       </div>
     )
   }
 
-  /* ── Result screen ───────────────────────────────────────────────────── */
-  if (step === 'result' && result) {
-    const games = EXERCISE_GAMES[result.exercise]
-    const label = EXERCISE_LABELS[result.exercise]
-    return (
-      <div className="ai-root">
-        <button className="back-btn" onClick={onBack}>← Back</button>
-        <div className="ai-result-header">
-          <span className="ai-result-badge">AI Recommendation</span>
-          <div className="ai-result-icon">{label.icon}</div>
-          <h1 className="ai-result-title">{label.name}</h1>
-          <p className="ai-result-reason">{result.reason}</p>
-        </div>
-        <p className="ai-result-sub">Your exercises — tap one to begin calibration</p>
-        <div className="ai-cards">
-          {games.map((g, i) => (
-            <button
-              key={g.id}
-              className={`ai-card ${i < visibleCards ? 'ai-card--visible' : ''}`}
-              onClick={() => onSelect(result.exercise, g.id)}
-            >
-              <div className="ai-card-icon">{g.icon}</div>
-              <div className="ai-card-title">{g.title}</div>
-              <div className="ai-card-desc">{g.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  /* ── Input screen ────────────────────────────────────────────────────── */
+  /* ── Input ─────────────────────────────────────────────────────────── */
   return (
-    <div className="ai-root">
-      <button className="back-btn" onClick={onBack}>← Back</button>
-      <div className="ai-input-card">
-        <div className="ai-input-icon">✨</div>
-        <h1 className="ai-input-title">AI Coach</h1>
-        <p className="ai-input-sub">
-          Describe your injury or goal and I'll pick the right exercises and games for you.
-        </p>
+    <div className="min-h-screen w-full flex items-center justify-center px-6 py-16">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, ease: EASE }}
+        className="w-full max-w-xl"
+      >
+        <button className="back-btn mb-10" onClick={onBack}>← Back</button>
 
-        <textarea
-          className="ai-textarea"
-          placeholder={'e.g. "I hurt my right shoulder lifting weights"\ne.g. "I want to strengthen my bicep after surgery"'}
-          value={prompt}
-          onChange={e => setPrompt(e.target.value)}
-          rows={4}
-          onKeyDown={e => e.key === 'Enter' && e.metaKey && handleSubmit()}
-        />
+        <header className="mb-10">
+          <span className="eyebrow mb-4 inline-flex items-center gap-2">
+            <span className="live-dot" />
+            AI coach
+          </span>
+          <h1 className="display text-[44px] leading-[1.05]">
+            Tell me what's<br />
+            <span className="display-italic text-signal">going on.</span>
+          </h1>
+          <p className="mt-4 text-inkSoft text-[16px] leading-relaxed">
+            Describe your injury or goal in a sentence. I'll choose the right
+            movement and games for the session.
+          </p>
+        </header>
 
-        {error && <div className="ai-error">⚠ {error}</div>}
+        <div className="card p-7 md:p-8">
+          <textarea
+            className="input-field font-sans resize-none"
+            placeholder='e.g. I tore my rotator cuff six weeks ago and I want to start mobilising again.'
+            value={prompt}
+            onChange={e => setPrompt(e.target.value)}
+            rows={4}
+            onKeyDown={e => e.key === 'Enter' && e.metaKey && handleSubmit()}
+          />
 
-        <input
-          className="ai-key-input"
-          type="password"
-          placeholder="Anthropic API key  (sk-ant-…)"
-          value={apiKey}
-          onChange={e => setApiKey(e.target.value)}
-        />
-        <p className="ai-key-note">Saved locally — never sent anywhere except Anthropic.</p>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: EASE }}
+              className="mt-4 px-4 py-3 rounded-xl text-[13px]
+                         bg-rose/10 border border-rose/30 text-rose"
+            >
+              {error}
+            </motion.div>
+          )}
+        </div>
 
-        <button
-          className="ai-submit"
-          onClick={handleSubmit}
-          disabled={!prompt.trim() || !apiKey.trim()}
-        >
-          Build My Plan →
-        </button>
-      </div>
+        <div className="mt-6 flex items-center justify-between">
+          <p className="text-[12px] text-inkMute">
+            Runs through the RehabBuddy backend. Your key never leaves the server.
+          </p>
+          <button
+            className="btn-primary"
+            onClick={handleSubmit}
+            disabled={!prompt.trim()}
+          >
+            Build my plan
+          </button>
+        </div>
+      </motion.div>
     </div>
   )
 }

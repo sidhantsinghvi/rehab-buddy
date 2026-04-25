@@ -65,7 +65,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
         <div className="exercise-tag">{exercise === 'tricep' ? 'Tricep Extension' : 'Bicep Curl'}</div>
         <div className="stat-chip">
           <span className="stat-label">Lives</span>
-          <span className="stat-value mono">{['❤️','❤️','❤️'].map((h,i) => i < lives ? '❤️' : '🖤').join('')}</span>
+          <span className="stat-value mono">{[0,1,2].map(i => i < lives ? '●' : '○').join(' ')}</span>
         </div>
       </div>
 
@@ -73,7 +73,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
       {violation && (
         <div className="violation-overlay">
           <div className="violation-box">
-            <div className="violation-icon">⚠️</div>
+            <div className="violation-icon">!</div>
             <div className="violation-msg">{violation.message}</div>
           </div>
         </div>
@@ -83,8 +83,8 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
       {lives === 0 && (
         <div className="violation-overlay violation-overlay--gameover">
           <div className="violation-box">
-            <div className="violation-icon">💔</div>
-            <div className="violation-msg">Session ended — you exceeded your safe limits</div>
+          <div className="violation-icon">—</div>
+          <div className="violation-msg">Session ended — you exceeded your safe limits</div>
             <button className="btn btn-primary" style={{marginTop: 16}} onClick={onFinish}>See Summary</button>
           </div>
         </div>
@@ -93,7 +93,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
       {/* ── connection status ── */}
       {!data.connected && (
         <div className="sensor-banner sensor-banner--error">
-          ✗ Backend not connected — is <code>python main.py</code> running on port 8000?
+          Backend not connected — is <code>python main.py</code> running on port 8000?
         </div>
       )}
       {data.connected && !data.sensorConnected && (
@@ -113,7 +113,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
             </span>
           ) : (
             <span>
-              ⚠ Waiting for phyphox at{' '}
+              Waiting for phyphox at{' '}
               <code
                 className="host-clickable"
                 onClick={() => { setHostInput(displayHost || config.phyphox_host || ''); setEditingHost(true) }}

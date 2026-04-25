@@ -22,6 +22,14 @@ export default function ExerciseSelect({ onSelect }) {
             Extend to full lockout.
           </div>
         </button>
+        <button className="ex-card" onClick={() => onSelect('lateral')}>
+          <div className="ex-icon">🪽</div>
+          <div className="ex-card-title">Lateral Raises</div>
+          <div className="ex-card-desc">
+            Tracker, Meteor Shield, Ring Pop &amp; Wing Balance<br />
+            Raise to shoulder height.
+          </div>
+        </button>
       </div>
     </div>
   )

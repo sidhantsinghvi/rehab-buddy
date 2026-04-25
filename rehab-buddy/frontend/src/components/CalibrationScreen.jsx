@@ -10,7 +10,7 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
         <div className="calib-logo">🦾</div>
         <h1 className="calib-title">Set Your Limits</h1>
         <p className="calib-subtitle">
-          Do <strong>2 slow, comfortable {exercise === 'tricep' ? 'extensions' : 'curls'}</strong> at your full safe range.<br />
+          Do <strong>2 slow, comfortable {exercise === 'tricep' ? 'extensions' : exercise === 'lateral' ? 'lateral raises' : 'curls'}</strong> at your full safe range.<br />
           This sets the boundaries the game will enforce.
         </p>
 

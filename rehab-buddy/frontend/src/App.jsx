@@ -4,16 +4,19 @@ import Setup from './components/Setup'
 import ExerciseSelect from './components/ExerciseSelect'
 import CalibrationScreen from './components/CalibrationScreen'
 import GameSelect from './components/GameSelect'
-import BasketballGame from './components/BasketballGame'
 import RunnerGame from './components/RunnerGame'
+import BasketballGame from './components/BasketballGame'
 import PongGame from './components/PongGame'
 import ArcheryGame from './components/ArcheryGame'
 import CurlGame from './components/CurlGame'
+import LateralRaiseGame from './components/LateralRaiseGame'
+import MeteorShieldGame from './components/MeteorShieldGame'
+import RingPopGame from './components/RingPopGame'
+import WingBalanceGame from './components/WingBalanceGame'
 import SessionSummary from './components/SessionSummary'
 
 export default function App() {
   const [screen, setScreen] = useState('setup')
-  const [exercise, setExercise] = useState(null) // 'bicep' | 'tricep'
   const [finalData, setFinalData] = useState(null)
 
   const {
@@ -21,6 +24,7 @@ export default function App() {
     gamePhase, startGame, resetCalibration, skipCalibration,
     calibReps, calibStatus, calibAccY, limits,
     lives, violation,
+    exercise, setExercise,
   } = usePhyphoxDirect('')
 
   function send(msg) {
@@ -52,7 +56,6 @@ export default function App() {
   function handleRestart() {
     reset()
     resetCalibration()
-    setExercise(null)
     setScreen('setup')
   }
 
@@ -98,6 +101,18 @@ export default function App() {
       violation={violation}
       exercise={exercise}
     />
+  )
+  if (screen === 'lateral-raise') return (
+    <LateralRaiseGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+  )
+  if (screen === 'meteor-shield') return (
+    <MeteorShieldGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+  )
+  if (screen === 'ring-pop') return (
+    <RingPopGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+  )
+  if (screen === 'wing-balance') return (
+    <WingBalanceGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
   )
 
   return null

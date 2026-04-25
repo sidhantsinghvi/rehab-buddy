@@ -21,6 +21,32 @@ const GAMES = {
       desc: <>Classic rep counter.<br />Score reps, track your form.</>,
     },
   ],
+  lateral: [
+    {
+      id: 'lateral-raise',
+      icon: '🎯',
+      title: 'Tracker',
+      desc: <>Lift to band, hold, lower.<br />Classic raise practice.</>,
+    },
+    {
+      id: 'meteor-shield',
+      icon: '☄️',
+      title: 'Meteor Shield',
+      desc: <>Match the meteor height.<br />Block incoming hits.</>,
+    },
+    {
+      id: 'ring-pop',
+      icon: '⭕',
+      title: 'Ring Pop',
+      desc: <>Line up with floating rings.<br />Pop them as they pass.</>,
+    },
+    {
+      id: 'wing-balance',
+      icon: '🕊️',
+      title: 'Wing Balance',
+      desc: <>Hold inside a drifting band.<br />Steady wins.</>,
+    },
+  ],
   tricep: [
     {
       id: 'pong',

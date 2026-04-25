@@ -66,3 +66,20 @@
   font-size: 13px;
   line-height: 1.5;
 }
+
+.ex-ai-btn {
+  background: none;
+  border: 1px solid #2a2f3d;
+  border-radius: 12px;
+  color: #4c9be8;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 28px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.ex-ai-btn:hover {
+  background: #161a22;
+  border-color: #4c9be8;
+}

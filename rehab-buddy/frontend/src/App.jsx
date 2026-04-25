@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { usePhyphoxDirect } from './hooks/usePhyphoxDirect'
 import Setup from './components/Setup'
+import AICoach from './components/AICoach'
 import ExerciseSelect from './components/ExerciseSelect'
 import CalibrationScreen from './components/CalibrationScreen'
 import GameSelect from './components/GameSelect'
@@ -18,6 +19,7 @@ import SessionSummary from './components/SessionSummary'
 export default function App() {
   const [screen, setScreen] = useState('setup')
   const [finalData, setFinalData] = useState(null)
+  const [pendingGame, setPendingGame] = useState(null)  // set by AI coach
 
   const {
     data, repFlash, host, setHost, reset,
@@ -45,7 +47,19 @@ export default function App() {
 
   function handleCalibrationDone() {
     startGame()
-    setScreen('select')
+    if (pendingGame) {
+      setScreen(pendingGame)
+      setPendingGame(null)
+    } else {
+      setScreen('select')
+    }
+  }
+
+  function handleAISelect(ex, gameId) {
+    setExercise(ex)
+    resetCalibration()
+    setPendingGame(gameId)
+    setScreen('calibration')
   }
 
   function handleFinish() {
@@ -62,7 +76,11 @@ export default function App() {
   if (screen === 'setup') return <Setup onStart={handleSetupDone} />
 
   if (screen === 'exerciseSelect') return (
-    <ExerciseSelect onSelect={handleExerciseSelect} onBack={() => setScreen('setup')} />
+    <ExerciseSelect onSelect={handleExerciseSelect} onBack={() => setScreen('setup')} onAICoach={() => setScreen('aiCoach')} />
+  )
+
+  if (screen === 'aiCoach') return (
+    <AICoach onSelect={handleAISelect} onBack={() => setScreen('exerciseSelect')} />
   )
 
   if (screen === 'calibration') return (

@@ -1,0 +1,102 @@
+.bball-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #0d0f14;
+  padding: 16px;
+  gap: 14px;
+  position: relative;
+}
+.bball-canvas {
+  border-radius: 16px;
+  border: 1px solid #2a2f3d;
+  max-width: 100%;
+  display: block;
+}
+.bball-violation {
+  background: #3a0d0d;
+  border: 1px solid #e74c3c;
+  color: #f5a0a0;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.bball-result {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 22px;
+  font-weight: 800;
+  padding: 10px 24px;
+  border-radius: 12px;
+  animation: pop 0.3s ease;
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+}
+.bball-result--in    { background: #0d3a1a; color: #2ecc71; border: 1px solid #2ecc71; }
+.bball-result--rim   { background: #2a1a00; color: #f39c12; border: 1px solid #f39c12; }
+.bball-result--miss  { background: #2a0d0d; color: #e74c3c; border: 1px solid #e74c3c; }
+@keyframes pop {
+  0%   { transform: translateX(-50%) scale(0.6); opacity: 0; }
+  60%  { transform: translateX(-50%) scale(1.1); opacity: 1; }
+  100% { transform: translateX(-50%) scale(1);   opacity: 1; }
+}
+.bball-bottom { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.bball-hint   { color: #8b92a5; font-size: 13px; text-align: center; }
+.bball-actions { display: flex; gap: 10px; }
+
+.bball-canvas-wrap {
+  position: relative;
+  display: inline-block;
+}
+.bball-countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 16px;
+  pointer-events: none;
+  z-index: 5;
+}
+.bball-countdown {
+  font-size: 160px;
+  font-weight: 900;
+  color: #00d4ff;
+  text-shadow: 0 0 40px rgba(0, 212, 255, 0.8), 0 4px 20px rgba(0, 0, 0, 0.6);
+  font-family: -apple-system, system-ui, sans-serif;
+  animation: countdown-pop 0.8s cubic-bezier(.2,1.2,.4,1) both;
+}
+.bball-countdown--go {
+  font-size: 120px;
+  color: #00e676;
+  text-shadow: 0 0 60px rgba(0, 230, 118, 0.9), 0 4px 20px rgba(0, 0, 0, 0.6);
+  letter-spacing: 4px;
+  animation: countdown-go 0.5s cubic-bezier(.2,1.2,.4,1) both;
+}
+.bball-countdown-sub {
+  margin-top: 12px;
+  color: #8b92a5;
+  font-size: 14px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+@keyframes countdown-pop {
+  0%   { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+  35%  { transform: scale(1.15) rotate(2deg); opacity: 1; }
+  60%  { transform: scale(1) rotate(0deg);    opacity: 1; }
+  100% { transform: scale(0.85);              opacity: 0; }
+}
+@keyframes countdown-go {
+  0%   { transform: scale(0.4); opacity: 0; }
+  30%  { transform: scale(1.4); opacity: 1; }
+  60%  { transform: scale(1);   opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}

@@ -4,6 +4,7 @@ import Setup from './components/Setup'
 import CalibrationScreen from './components/CalibrationScreen'
 import GameSelect from './components/GameSelect'
 import RunnerGame from './components/RunnerGame'
+import BasketballGame from './components/BasketballGame'
 import CurlGame from './components/CurlGame'
 import SessionSummary from './components/SessionSummary'
 
@@ -60,6 +61,9 @@ export default function App() {
 
   if (screen === 'runner') return (
     <RunnerGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
+  )
+  if (screen === 'basketball') return (
+    <BasketballGame data={data} repFlash={repFlash} lives={lives} violation={violation} onFinish={handleFinish} send={send} />
   )
   if (screen === 'tracker') return (
     <CurlGame

@@ -14,7 +14,15 @@ export default function GameSelect({ onSelect }) {
             Curl to go up, relax to go down.
           </div>
         </button>
-<button className="gs-card" onClick={() => onSelect('tracker')}>
+        <button className="gs-card" onClick={() => onSelect('basketball')}>
+          <div className="gs-icon">🏀</div>
+          <div className="gs-card-title">Basketball</div>
+          <div className="gs-card-desc">
+            Aim the hoop with your curl.<br />
+            Shoot when ready!
+          </div>
+        </button>
+        <button className="gs-card" onClick={() => onSelect('tracker')}>
           <div className="gs-icon">📊</div>
           <div className="gs-card-title">Tracker</div>
           <div className="gs-card-desc">

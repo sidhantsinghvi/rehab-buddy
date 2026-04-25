@@ -1,9 +1,19 @@
 import './CalibrationScreen.css'
 
 export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, limits, onDone, onSkip, onBack, exercise = 'bicep' }) {
-  const pct = exercise === 'lateral'
-    ? Math.round((-calibAccY / 20) * 100)          // accZ=0 → 0%, accZ=-20 → 100%
-    : Math.round(((calibAccY + 13) / 26) * 100)
+  let pct
+  if (exercise === 'lateral') {
+    if (limits) {
+      // Use calibrated range: limits.max = rest, limits.min = raised
+      const range = limits.max - limits.min
+      pct = range > 0 ? Math.round(((limits.max - calibAccY) / range) * 100) : 0
+    } else {
+      // Pre-calibration estimate — assume ~8 m/s² range
+      pct = Math.round((-calibAccY / 8) * 100)
+    }
+  } else {
+    pct = Math.round(((calibAccY + 13) / 26) * 100)
+  }
   const barPct = Math.max(2, Math.min(98, pct))
 
   return (

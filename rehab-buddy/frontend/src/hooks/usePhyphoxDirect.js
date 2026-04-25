@@ -91,6 +91,7 @@ export function usePhyphoxDirect(initialHost = '') {
     lateralRestSamples: [], lateralRestZ: null, lateralTopZ: null,
     lateralCalibMinZ: Infinity, lateralCalibMaxZ: -Infinity,
     lateralCalibReps: 0, lateralInRep: false,
+    lateralRepPeaks: [],
     lateralDirCaptured: false, lateralTopIsMaxZ: false,
 
     // speed tracking
@@ -179,11 +180,17 @@ export function usePhyphoxDirect(initialHost = '') {
 
       if (deviation < REP_END_DEVIATION) {
         s.lateralInRep = false
+        // Store this rep's peak and reset for next rep
+        const repPeak = s.lateralTopIsMaxZ ? s.lateralCalibMaxZ : s.lateralCalibMinZ
+        s.lateralRepPeaks.push(repPeak)
+        s.lateralCalibMinZ = Infinity
+        s.lateralCalibMaxZ = -Infinity
         s.lateralCalibReps++
         setCalibReps(s.lateralCalibReps)
 
         if (s.lateralCalibReps >= CALIB_REPS_NEEDED) {
-          s.lateralTopZ = s.lateralTopIsMaxZ ? s.lateralCalibMaxZ : s.lateralCalibMinZ
+          // Average the peaks across reps to avoid noise spikes
+          s.lateralTopZ = s.lateralRepPeaks.reduce((a, b) => a + b, 0) / s.lateralRepPeaks.length
           setLimits({
             min: Math.min(s.lateralTopZ, s.lateralRestZ),
             max: Math.max(s.lateralTopZ, s.lateralRestZ),
@@ -194,8 +201,8 @@ export function usePhyphoxDirect(initialHost = '') {
     } else {
       if (deviation > REP_START_DEVIATION) {
         s.lateralInRep = true
-        s.lateralCalibMinZ = Math.min(s.lateralCalibMinZ, accZ)
-        s.lateralCalibMaxZ = Math.max(s.lateralCalibMaxZ, accZ)
+        s.lateralCalibMinZ = accZ
+        s.lateralCalibMaxZ = accZ
       }
     }
   }, [])
@@ -414,7 +421,7 @@ export function usePhyphoxDirect(initialHost = '') {
     // lateral
     s.lateralRestSamples = []; s.lateralRestZ = null; s.lateralTopZ = null
     s.lateralCalibMinZ = Infinity; s.lateralCalibMaxZ = -Infinity
-    s.lateralCalibReps = 0; s.lateralInRep = false
+    s.lateralCalibReps = 0; s.lateralInRep = false; s.lateralRepPeaks = []
     s.lateralDirCaptured = false; s.lateralTopIsMaxZ = false
     setCalibReps(0); setCalibStatus('collecting_rest'); setLimits(null)
     setGamePhase('calibrating')
@@ -425,7 +432,7 @@ export function usePhyphoxDirect(initialHost = '') {
     if (exerciseRef.current === 'lateral') {
       const currentZ = Number.isFinite(s.prevAccZ) ? s.prevAccZ : 0
       s.lateralRestZ = currentZ
-      s.lateralTopZ = currentZ - 20
+      s.lateralTopZ = currentZ - 10
       setLimits({ min: s.lateralTopZ, max: currentZ })
     } else {
       const restVal = Number.isFinite(s.prevAccY) ? s.prevAccY : 0

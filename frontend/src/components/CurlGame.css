@@ -341,3 +341,42 @@
   color: #000;
 }
 .btn-primary:hover { opacity: 0.88; }
+
+/* ── violation overlay ── */
+.violation-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(220, 50, 50, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: violation-flash 0.2s ease;
+}
+
+.violation-overlay--gameover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+@keyframes violation-flash {
+  0%   { background: rgba(220, 50, 50, 0.6); }
+  100% { background: rgba(220, 50, 50, 0.25); }
+}
+
+.violation-box {
+  background: #1e0a0a;
+  border: 2px solid #e74c3c;
+  border-radius: 16px;
+  padding: 28px 36px;
+  text-align: center;
+  max-width: 340px;
+}
+
+.violation-icon { font-size: 40px; margin-bottom: 12px; }
+
+.violation-msg {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f5a0a0;
+  line-height: 1.5;
+}

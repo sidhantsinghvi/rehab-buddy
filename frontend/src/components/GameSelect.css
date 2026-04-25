@@ -1,0 +1,30 @@
+.gs-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #0d0f14;
+  padding: 24px;
+  gap: 20px;
+}
+.gs-title { font-size: 28px; font-weight: 700; color: #e8eaf0; margin: 0; }
+.gs-sub { color: #8b92a5; font-size: 14px; margin: 0; }
+.gs-cards { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+.gs-card {
+  background: #161a22;
+  border: 1px solid #2a2f3d;
+  border-radius: 20px;
+  padding: 36px 28px;
+  width: 200px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.gs-card:hover { border-color: #4c9be8; transform: translateY(-4px); }
+.gs-icon { font-size: 48px; }
+.gs-card-title { font-size: 18px; font-weight: 700; color: #e8eaf0; }
+.gs-card-desc { font-size: 13px; color: #8b92a5; text-align: center; line-height: 1.5; }

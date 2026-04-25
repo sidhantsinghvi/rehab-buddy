@@ -15,7 +15,7 @@ function formatTime(secs) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-export default function CurlGame({ data, repFlash, config = {}, send, onFinish }) {
+export default function CurlGame({ data, repFlash, config = {}, send, onFinish, lives = 3, violation = null }) {
   const [flashVisible, setFlashVisible] = useState(false)
   const [flashLabel, setFlashLabel] = useState(null)
   const [editingHost, setEditingHost] = useState(false)
@@ -64,10 +64,31 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish }
         </div>
         <div className="exercise-tag">Bicep Curl</div>
         <div className="stat-chip">
-          <span className="stat-label">Score</span>
-          <span className="stat-value accent mono">{data.score}</span>
+          <span className="stat-label">Lives</span>
+          <span className="stat-value mono">{['❤️','❤️','❤️'].map((h,i) => i < lives ? '❤️' : '🖤').join('')}</span>
         </div>
       </div>
+
+      {/* ── violation overlay ── */}
+      {violation && (
+        <div className="violation-overlay">
+          <div className="violation-box">
+            <div className="violation-icon">⚠️</div>
+            <div className="violation-msg">{violation.message}</div>
+          </div>
+        </div>
+      )}
+
+      {/* ── game over overlay ── */}
+      {lives === 0 && (
+        <div className="violation-overlay violation-overlay--gameover">
+          <div className="violation-box">
+            <div className="violation-icon">💔</div>
+            <div className="violation-msg">Session ended — you exceeded your safe limits</div>
+            <button className="btn btn-primary" style={{marginTop: 16}} onClick={onFinish}>See Summary</button>
+          </div>
+        </div>
+      )}
 
       {/* ── connection status ── */}
       {!data.connected && (

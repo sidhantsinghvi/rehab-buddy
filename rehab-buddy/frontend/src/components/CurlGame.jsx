@@ -47,7 +47,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
     setEditingHost(false)
   }
 
-  const progress = data.smoothed_progress
+  const progress = exercise === 'tricep' ? 1 - data.smoothed_progress : data.smoothed_progress
   const repState = data.rep_state
 
   const progressPct = Math.round(progress * 100)

@@ -61,7 +61,7 @@ export default function ArcheryGame({ data, lives: calibLives, violation, onFini
 
     function getAimY() {
       const sp = Math.max(0, Math.min(1, dataRef.current.smoothed_progress))
-      return H * 0.85 - sp * H * 0.70
+      return H * 0.15 + sp * H * 0.70
     }
 
     function fireArrow(fromY) {

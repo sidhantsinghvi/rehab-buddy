@@ -56,7 +56,7 @@ export default function PongGame({ data, lives: calibLives, violation, onFinish,
 
       // Player paddle from arm
       const sp = Math.max(0, Math.min(1, dataRef.current.progress))
-      g.playerY = H * (1 - sp) - PADDLE_H / 2
+      g.playerY = H * sp - PADDLE_H / 2
       g.playerY = Math.max(0, Math.min(H - PADDLE_H, g.playerY))
 
       // AI paddle — tracks ball with limited speed

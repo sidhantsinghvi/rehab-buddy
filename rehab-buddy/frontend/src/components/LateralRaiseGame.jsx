@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import './LateralRaiseGame.css'
 
-const START_LIFT = 0.25
-const BAND_LOW = 0.65
-const BAND_HIGH = 0.82
-const OVER_RAISE = 0.92
-const RETURN_DOWN = 0.18
-const HOLD_MS = 350
+const START_LIFT = 0.15
+const BAND_LOW = 0.50
+const BAND_HIGH = 0.95
+const OVER_RAISE = 1.5    // effectively disabled — progress is clamped to 1.0
+const RETURN_DOWN = 0.12
+const HOLD_MS = 200
 
 function formatTime(secs) {
   const m = Math.floor(secs / 60)

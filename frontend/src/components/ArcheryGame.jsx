@@ -7,8 +7,10 @@ const TARGET_X = W - 80
 const ARROW_X = 80
 const TARGET_H = 120      // total height of target face
 const RING_COUNT = 4
-const STABILITY_FRAMES = 55   // ~0.9s at 60Hz to auto-fire
-const STABILITY_WINDOW = 0.08 // smoothed_progress must stay within ±this to count stable
+const STABILITY_FRAMES = 30   // charge target: ~0.5s at 60Hz of steady aim
+const TIGHTNESS_WINDOW_LEN = 8  // small sliding window — reacts quickly when arm settles
+const STABILITY_WINDOW = 0.11 // smoothed_progress range allowed within the small window
+const CHARGE_DECAY = 2          // per-frame decay when not tight
 const ARROW_SPEED = 14
 const TARGET_SPEED_BASE = 0.7
 const TARGET_SPEED_MAX = 1.9
@@ -84,35 +86,42 @@ export default function ArcheryGame({ data, lives: calibLives, violation, onFini
 
       const aimY = getAimY()
 
-      // Stability detection — check if arm is steady
+      // Stability detection — short sliding window decides whether the arm
+      // is currently tight; a single charge counter accumulates while tight
+      // and decays while not, so the user gets a smooth charge bar and can
+      // fire after roughly STABILITY_FRAMES of steady aim.
       const sp = Math.max(0, Math.min(1, dataRef.current.smoothed_progress))
       g.recentProgress.push(sp)
-      if (g.recentProgress.length > STABILITY_FRAMES) g.recentProgress.shift()
+      if (g.recentProgress.length > TIGHTNESS_WINDOW_LEN) g.recentProgress.shift()
 
-      const canFire = g.arrowTravelX === null  // not currently shooting
+      const canFire = g.arrowTravelX === null
 
-      if (canFire && g.recentProgress.length >= STABILITY_FRAMES) {
-        const min = Math.min(...g.recentProgress)
-        const max = Math.max(...g.recentProgress)
-        if (max - min < STABILITY_WINDOW * 2) {
-          g.stableFrames++
-          if (g.stableFrames >= STABILITY_FRAMES) {
-            g.stableFrames = 0
-            g.recentProgress = []
-            if (g.arrowsLeft > 0) {
-              g.arrowsLeft--
-              setArrowsLeft(g.arrowsLeft)
-              fireArrow(aimY)
-            }
-          }
-        } else {
-          g.stableFrames = 0
+      let tight = false
+      if (g.recentProgress.length >= TIGHTNESS_WINDOW_LEN) {
+        let lo = g.recentProgress[0]
+        let hi = g.recentProgress[0]
+        for (const v of g.recentProgress) {
+          if (v < lo) lo = v
+          if (v > hi) hi = v
         }
+        tight = (hi - lo) < STABILITY_WINDOW
       }
 
-      // Stableframes decays naturally when not stable
-      if (g.recentProgress.length < STABILITY_FRAMES || (g.recentProgress.length >= STABILITY_FRAMES && Math.max(...g.recentProgress) - Math.min(...g.recentProgress) >= STABILITY_WINDOW * 2)) {
-        g.stableFrames = Math.max(0, g.stableFrames - 2)
+      if (canFire) {
+        if (tight) g.stableFrames = Math.min(STABILITY_FRAMES, g.stableFrames + 1)
+        else g.stableFrames = Math.max(0, g.stableFrames - CHARGE_DECAY)
+
+        if (g.stableFrames >= STABILITY_FRAMES) {
+          g.stableFrames = 0
+          g.recentProgress = []
+          if (g.arrowsLeft > 0) {
+            g.arrowsLeft--
+            setArrowsLeft(g.arrowsLeft)
+            fireArrow(aimY)
+          }
+        }
+      } else {
+        g.stableFrames = 0
       }
 
       // Arrow flight

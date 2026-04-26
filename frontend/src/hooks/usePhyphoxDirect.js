@@ -24,6 +24,13 @@ const SPEED_THRESHOLD     = 50
 const MAX_LIVES           = 3
 const VIOLATION_COOLDOWN  = 2000
 
+// ── Connection debounce ──────────────────────────────────────────────────────
+// phyphox over Wi-Fi occasionally drops a packet; a single miss should not
+// flip the UI to "disconnected" and back. Only flag disconnected after a
+// short streak of consecutive failures.
+const POLL_TIMEOUT_MS         = 1500
+const DISCONNECT_FAIL_STREAK  = 6
+
 const INITIAL_DATA = {
   connected: false,
   sensorConnected: false,
@@ -83,7 +90,7 @@ export function usePhyphoxDirect(initialHost = '') {
     // bicep/tricep calibration (accY)
     restSamples: [], restValue: null,
     calibMin: Infinity, calibMax: -Infinity,
-    calibReps: 0, inRep: false,
+    calibReps: 0, inRep: false, bicepPeakDev: 0,
     curlRestValue: null, curlTopValue: null,
     limits: null,
 
@@ -91,7 +98,7 @@ export function usePhyphoxDirect(initialHost = '') {
     lateralRestSamples: [], lateralRestZ: null, lateralTopZ: null,
     lateralCalibMinZ: Infinity, lateralCalibMaxZ: -Infinity,
     lateralCalibReps: 0, lateralInRep: false,
-    lateralRepPeaks: [],
+    lateralRepPeaks: [], lateralPeakDev: 0,
     lateralDirCaptured: false, lateralTopIsMaxZ: false,
 
     // speed tracking
@@ -133,9 +140,17 @@ export function usePhyphoxDirect(initialHost = '') {
     if (s.inRep) {
       s.calibMin = Math.min(s.calibMin, accY)
       s.calibMax = Math.max(s.calibMax, accY)
+      s.bicepPeakDev = Math.max(s.bicepPeakDev ?? 0, deviation)
 
-      if (deviation < REP_END_DEVIATION) {
+      // End rep when signal is back near rest OR has dropped well below
+      // this rep's peak deviation. The peak-relative branch handles phone
+      // orientation drift between reps so the user does not have to land
+      // exactly on the original rest reading.
+      const peak = s.bicepPeakDev
+      const droppedFromPeak = peak >= REP_START_DEVIATION && deviation < peak * 0.45
+      if (deviation < REP_END_DEVIATION || droppedFromPeak) {
         s.inRep = false
+        s.bicepPeakDev = 0
         s.calibReps++
         setCalibReps(s.calibReps)
 
@@ -153,7 +168,10 @@ export function usePhyphoxDirect(initialHost = '') {
         }
       }
     } else {
-      if (deviation > REP_START_DEVIATION) s.inRep = true
+      if (deviation > REP_START_DEVIATION) {
+        s.inRep = true
+        s.bicepPeakDev = deviation
+      }
     }
   }, [])
 
@@ -177,19 +195,26 @@ export function usePhyphoxDirect(initialHost = '') {
     if (s.lateralInRep) {
       s.lateralCalibMinZ = Math.min(s.lateralCalibMinZ, accZ)
       s.lateralCalibMaxZ = Math.max(s.lateralCalibMaxZ, accZ)
+      s.lateralPeakDev = Math.max(s.lateralPeakDev ?? 0, deviation)
 
-      if (deviation < REP_END_DEVIATION) {
+      // End rep on either condition:
+      //   1. Signal is back near rest in absolute terms (small ROM exercises).
+      //   2. Signal has dropped well below this rep's own peak deviation
+      //      (handles phone-orientation drift between reps so the user does
+      //      not need to land exactly on the original rest reading).
+      const peak = s.lateralPeakDev
+      const droppedFromPeak = peak >= REP_START_DEVIATION && deviation < peak * 0.45
+      if (deviation < REP_END_DEVIATION || droppedFromPeak) {
         s.lateralInRep = false
-        // Store this rep's peak and reset for next rep
         const repPeak = s.lateralTopIsMaxZ ? s.lateralCalibMaxZ : s.lateralCalibMinZ
         s.lateralRepPeaks.push(repPeak)
         s.lateralCalibMinZ = Infinity
         s.lateralCalibMaxZ = -Infinity
+        s.lateralPeakDev = 0
         s.lateralCalibReps++
         setCalibReps(s.lateralCalibReps)
 
         if (s.lateralCalibReps >= CALIB_REPS_NEEDED) {
-          // Average the peaks across reps to avoid noise spikes
           s.lateralTopZ = s.lateralRepPeaks.reduce((a, b) => a + b, 0) / s.lateralRepPeaks.length
           setLimits({
             min: Math.min(s.lateralTopZ, s.lateralRestZ),
@@ -203,6 +228,13 @@ export function usePhyphoxDirect(initialHost = '') {
         s.lateralInRep = true
         s.lateralCalibMinZ = accZ
         s.lateralCalibMaxZ = accZ
+        s.lateralPeakDev = deviation
+        // First rep also fixes which sign of deviation we treat as "top",
+        // so we average peaks consistently across reps.
+        if (!s.lateralDirCaptured) {
+          s.lateralTopIsMaxZ = off > 0
+          s.lateralDirCaptured = true
+        }
       }
     }
   }, [])
@@ -264,7 +296,11 @@ export function usePhyphoxDirect(initialHost = '') {
     else s.smoothed += EMA_ALPHA * (progress - s.smoothed)
     const smth = s.smoothed
 
-    // Lateral progress (accZ, instant — no extra EMA)
+    // Lateral progress (accZ, instant — no extra EMA).
+    // Phone-on-forearm Z direction is inverted relative to our raise convention:
+    // calibration treats peak deviation as "top", but the resulting 0→1 mapping
+    // ends up reading 1 at arm-down and 0 at arm-up. Flip at the end so 0 = arm
+    // down (rest) and 1 = arm fully raised across all four lateral games.
     let lateralProgress = 0
     if (s.lateralRestZ !== null && s.lateralTopZ !== null) {
       const r = s.lateralRestZ, T = s.lateralTopZ
@@ -275,9 +311,10 @@ export function usePhyphoxDirect(initialHost = '') {
           ? Math.max(0, Math.min(1, (accZ - lo) / range))
           : Math.max(0, Math.min(1, (hi - accZ) / range))
       }
+      lateralProgress = 1 - lateralProgress
     } else {
-      // fallback: rest≈0, top≈-20 (accZ goes negative on raise)
-      lateralProgress = Math.max(0, Math.min(1, -accZ / 20))
+      // fallback before calibration: arm down ≈ 0, arm up ≈ 1.
+      lateralProgress = Math.max(0, Math.min(1, accZ / 20))
     }
 
     // Rep state machine (bicep & tricep only — lateral games handle their own reps)
@@ -330,14 +367,20 @@ export function usePhyphoxDirect(initialHost = '') {
     }
   }, [])
 
+  // Track a streak of consecutive poll failures so we don't flap the UI
+  // into "disconnected" on every transient Wi-Fi miss.
+  const failStreakRef = useRef(0)
+
   // ── Poll loop ─────────────────────────────────────────────────────────────
   const poll = useCallback(async (currentPhase) => {
     if (!host) return
 
     try {
-      const res = await fetch('/phyphox/get?accX=full&accY=full&accZ=full', { signal: AbortSignal.timeout(400) })
+      const res = await fetch('/phyphox/get?accX=full&accY=full&accZ=full', { signal: AbortSignal.timeout(POLL_TIMEOUT_MS) })
       if (!res.ok) throw new Error('http error')
       const json = await res.json()
+
+      failStreakRef.current = 0
 
       const status = json.status
       if (typeof status === 'object' && status !== null && status.measuring === false) {
@@ -368,7 +411,12 @@ export function usePhyphoxDirect(initialHost = '') {
       sp.current.prevTime = now
 
     } catch {
-      setData(prev => ({ ...prev, connected: true, sensorConnected: false }))
+      failStreakRef.current += 1
+      if (failStreakRef.current >= DISCONNECT_FAIL_STREAK) {
+        setData(prev => prev.sensorConnected
+          ? { ...prev, connected: true, sensorConnected: false }
+          : prev)
+      }
     }
   }, [host, processBicepCalibration, processLateralCalibration, checkViolations, processGame])
 
@@ -416,12 +464,13 @@ export function usePhyphoxDirect(initialHost = '') {
     // bicep/tricep
     s.restSamples = []; s.restValue = null
     s.calibMin = Infinity; s.calibMax = -Infinity
-    s.calibReps = 0; s.inRep = false; s.limits = null
+    s.calibReps = 0; s.inRep = false; s.bicepPeakDev = 0; s.limits = null
     s.curlRestValue = null; s.curlTopValue = null
     // lateral
     s.lateralRestSamples = []; s.lateralRestZ = null; s.lateralTopZ = null
     s.lateralCalibMinZ = Infinity; s.lateralCalibMaxZ = -Infinity
     s.lateralCalibReps = 0; s.lateralInRep = false; s.lateralRepPeaks = []
+    s.lateralPeakDev = 0
     s.lateralDirCaptured = false; s.lateralTopIsMaxZ = false
     setCalibReps(0); setCalibStatus('collecting_rest'); setLimits(null)
     setGamePhase('calibrating')
@@ -449,11 +498,54 @@ export function usePhyphoxDirect(initialHost = '') {
 
   const setExercise = useCallback((name) => { setExerciseState(name) }, [])
 
+  // ── One-shot connection probe (used by Setup) ────────────────────────────
+  // Routes through the same Vite proxy as the live poll, so a successful
+  // probe means the live loop will work too. Returns a sample reading or
+  // throws an Error with a human message.
+  const probeConnection = useCallback(async (probeHost) => {
+    const target = probeHost || host
+    if (!target) throw new Error('Enter a phyphox IP first')
+
+    try {
+      await fetch('/set-phyphox-host', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: target }),
+      })
+    } catch {
+      throw new Error('Dev proxy not reachable — is the frontend running?')
+    }
+
+    let res
+    try {
+      res = await fetch('/phyphox/get?accX=full&accY=full&accZ=full', {
+        signal: AbortSignal.timeout(2500),
+      })
+    } catch {
+      throw new Error('No response from phyphox. Check the IP and that the experiment is running.')
+    }
+    if (!res.ok) throw new Error(`phyphox returned HTTP ${res.status}`)
+
+    const json = await res.json()
+    const status = json.status
+    if (typeof status === 'object' && status?.measuring === false) {
+      throw new Error('phyphox is connected but not measuring — press play in the app.')
+    }
+
+    const buf  = json.buffer ?? json
+    const accY = buf?.accY?.buffer?.at(-1)
+    const accZ = buf?.accZ?.buffer?.at(-1) ?? 0
+    if (accY == null) throw new Error('Connected but no acceleration data yet — wait a moment and retry.')
+
+    return { accY, accZ }
+  }, [host])
+
   return {
     data, repFlash, host, setHost, reset,
     gamePhase, startGame, resetCalibration, skipCalibration,
     calibReps, calibStatus, calibAccY, limits,
     lives, violation,
     exercise, setExercise,
+    probeConnection,
   }
 }

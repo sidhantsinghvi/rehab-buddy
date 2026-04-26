@@ -1,16 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import './LateralGames.css'
+import CountdownOverlay, { useStartCountdown } from './CountdownOverlay'
 
 const W = 920
 const H = 460
 const PLAYER_X = W / 2
 const BAND_TOP_FRAC = 0.18
 const BAND_BOT_FRAC = 0.86
-const BAND_HALF_START = 70
-const BAND_HALF_MIN = 28
+const BAND_HALF_START = 95
+const BAND_HALF_MIN = 50
 const DRIFT_SPEED_START = 0.35
 const DRIFT_SPEED_MAX = 0.9
 const GAME_MS = 60_000
+const STARTING_LIVES = 3
+// You only lose a life if you held the band for a real moment first —
+// short brushes through it on the way up should not punish.
+const LIFE_LOSS_MIN_STREAK_MS = 1800
+// And after losing one, give the user a short grace window before another
+// can be lost, so a single wobble cannot drain multiple lives at once.
+const LIFE_LOSS_COOLDOWN_MS = 2500
 
 function fmt(secs) {
   const m = Math.floor(secs / 60)
@@ -23,7 +31,7 @@ function progressToY(p) {
   return bot - p * (bot - top)
 }
 
-export default function WingBalanceGame({ data, lives, violation, onFinish, send, onBack }) {
+export default function WingBalanceGame({ data, violation, onFinish, send, onBack }) {
   const progress = Number(data?.lateral_progress) || 0
   const axisZ = Number(data?.raw_z) || 0
   const progressRef = useRef(0)
@@ -32,21 +40,33 @@ export default function WingBalanceGame({ data, lives, violation, onFinish, send
   const canvasRef = useRef(null)
   const startedAtRef = useRef(performance.now())
   const lastFrameRef = useRef(performance.now())
+  const playerYRef = useRef(progressToY(0))
   const inBandMsRef = useRef(0)
   const longestStreakMsRef = useRef(0)
   const currentStreakMsRef = useRef(0)
   const scoreRef = useRef(0)
   const flashRef = useRef(null)
   const lastInBandRef = useRef(false)
+  const livesRef = useRef(STARTING_LIVES)
+  const lastLifeLostAtRef = useRef(-Infinity)
 
   const [inBandSec, setInBandSec] = useState(0)
   const [longestSec, setLongestSec] = useState(0)
   const [score, setScore] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const [flash, setFlash] = useState(null)
+  const [lives, setLives] = useState(STARTING_LIVES)
   const [done, setDone] = useState(false)
   const [bandCenterFrac, setBandCenterFrac] = useState(0.5)
   const [bandHalf, setBandHalf] = useState(BAND_HALF_START)
+  const { value: countdownValue, started, startedRef } = useStartCountdown()
+
+  useEffect(() => {
+    if (started) {
+      startedAtRef.current = performance.now()
+      lastFrameRef.current = performance.now()
+    }
+  }, [started])
 
   useEffect(() => {
     const ctx = canvasRef.current.getContext('2d')
@@ -55,11 +75,21 @@ export default function WingBalanceGame({ data, lives, violation, onFinish, send
 
     function step(now) {
       if (!running) return
+
+      // Hold the game in stasis while the countdown plays.
+      if (!startedRef.current) {
+        lastFrameRef.current = now
+        ctx.fillStyle = '#0a0c11'
+        ctx.fillRect(0, 0, W, H)
+        raf = requestAnimationFrame(step)
+        return
+      }
+
       const dtMs = now - lastFrameRef.current
       lastFrameRef.current = now
       const elapsedMs = now - startedAtRef.current
 
-      if (elapsedMs >= GAME_MS) {
+      if (elapsedMs >= GAME_MS || livesRef.current <= 0) {
         running = false
         setDone(true)
         return
@@ -74,7 +104,12 @@ export default function WingBalanceGame({ data, lives, violation, onFinish, send
       const centerFrac = 0.5 + 0.28 * Math.sin(phase) + 0.08 * Math.sin(phase * 1.7 + 0.6)
       const clampedCenter = Math.max(BAND_TOP_FRAC + 0.05, Math.min(BAND_BOT_FRAC - 0.05, centerFrac))
       const bandY = progressToY(1 - clampedCenter) // higher frac = lower target
-      const playerY = progressToY(progressRef.current)
+      // Smooth the wing dot toward the sensor target. Sensor updates ~20 Hz,
+      // render is 60 fps, so without easing the dot steps every 2-3 frames.
+      const targetY = progressToY(progressRef.current)
+      const smoothing = 1 - Math.pow(0.001, dtMs / 1000)
+      playerYRef.current += (targetY - playerYRef.current) * smoothing
+      const playerY = playerYRef.current
       const inBand = Math.abs(playerY - bandY) <= halfWidth
 
       if (inBand) {
@@ -88,6 +123,16 @@ export default function WingBalanceGame({ data, lives, violation, onFinish, send
       } else {
         if (lastInBandRef.current && currentStreakMsRef.current > 1500) {
           flashRef.current = { text: `STREAK ${(currentStreakMsRef.current/1000).toFixed(1)}s`, at: now, color: '#e8b94c' }
+        }
+        // Lose a life only when falling out of a meaningful in-band streak,
+        // and only once per cooldown window so a single wobble cannot drain
+        // multiple lives.
+        const heldLongEnough = lastInBandRef.current && currentStreakMsRef.current >= LIFE_LOSS_MIN_STREAK_MS
+        const cooldownExpired = now - lastLifeLostAtRef.current >= LIFE_LOSS_COOLDOWN_MS
+        if (heldLongEnough && cooldownExpired) {
+          livesRef.current = Math.max(0, livesRef.current - 1)
+          lastLifeLostAtRef.current = now
+          flashRef.current = { text: 'OUT OF BAND −1 LIFE', at: now, color: '#e84c4c' }
         }
         currentStreakMsRef.current = 0
       }
@@ -134,6 +179,7 @@ export default function WingBalanceGame({ data, lives, violation, onFinish, send
         setInBandSec(inBandMsRef.current / 1000)
         setLongestSec(longestStreakMsRef.current / 1000)
         setScore(Math.round(scoreRef.current))
+        setLives(livesRef.current)
         setElapsed(elapsedMs / 1000)
         setBandCenterFrac(clampedCenter)
         setBandHalf(halfWidth)
@@ -160,6 +206,13 @@ export default function WingBalanceGame({ data, lives, violation, onFinish, send
     })
   }
 
+  useEffect(() => {
+    if (!done) return
+    const t = setTimeout(handleFinish, 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done])
+
   return (
     <div className="lg-root">
       {violation && <div className="lg-violation">Warning: {violation.message}</div>}
@@ -172,18 +225,20 @@ export default function WingBalanceGame({ data, lives, violation, onFinish, send
         <div className="lg-stat"><span>In-Band</span><strong>{inBandSec.toFixed(1)}s</strong></div>
         <div className="lg-stat"><span>Longest</span><strong>{longestSec.toFixed(1)}s</strong></div>
         <div className="lg-stat"><span>Score</span><strong>{score}</strong></div>
+        <div className="lg-stat"><span>Lives</span><strong>{lives}/3</strong></div>
         <div className="lg-stat"><span>Lift</span><strong>{Math.round(progress * 100)}%</strong></div>
         <div className="lg-stat"><span>Band ±</span><strong>{Math.round(bandHalf)}px</strong></div>
         <div className="lg-stat"><span>Axis Z</span><strong>{axisZ.toFixed(2)}</strong></div>
       </div>
 
-      <div className="lg-canvas-wrap">
+      <div className="lg-canvas-wrap" style={{ position: 'relative' }}>
         <canvas ref={canvasRef} width={W} height={H} className="lg-canvas" />
         {flash && (
           <div className="lg-flash" style={{ background: `${flash.color}22`, borderColor: flash.color, color: flash.color }}>
             {flash.text}
           </div>
         )}
+        <CountdownOverlay value={countdownValue} />
       </div>
       <div className="lg-hint">Stay inside the drifting band. Band narrows as time goes on.</div>
 

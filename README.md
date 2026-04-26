@@ -1,4 +1,6 @@
-# RehabBuddy — Iteration 1
+# RepRight — Iteration 1
+
+_recover with the right movement_
 
 Phyphox-driven bicep curl trainer with a game-like visualization.
 

@@ -45,5 +45,15 @@ export default defineConfig({
       },
     },
   ],
-  server: { port: 5173 },
+  server: {
+    port: 5173,
+    proxy: {
+      // Forward /api/* to the FastAPI backend so the Anthropic key never
+      // touches the browser.
+      '/api': {
+        target: process.env.BACKEND_URL || 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
 })

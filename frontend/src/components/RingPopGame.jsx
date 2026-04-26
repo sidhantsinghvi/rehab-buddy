@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './LateralGames.css'
+import CountdownOverlay, { useStartCountdown } from './CountdownOverlay'
 
 const W = 920
 const H = 460
@@ -15,6 +16,7 @@ const RING_SPEED_MAX = 320
 const GAME_MS = 60_000
 const BAND_TOP_FRAC = 0.18
 const BAND_BOT_FRAC = 0.86
+const STARTING_LIVES = 3
 
 function fmt(secs) {
   const m = Math.floor(secs / 60)
@@ -27,7 +29,7 @@ function progressToY(p) {
   return bot - p * (bot - top)
 }
 
-export default function RingPopGame({ data, lives, violation, onFinish, send, onBack }) {
+export default function RingPopGame({ data, violation, onFinish, send, onBack }) {
   const progress = Number(data?.lateral_progress) || 0
   const axisZ = Number(data?.raw_z) || 0
   const progressRef = useRef(0)
@@ -36,6 +38,7 @@ export default function RingPopGame({ data, lives, violation, onFinish, send, on
   const canvasRef = useRef(null)
   const startedAtRef = useRef(performance.now())
   const lastSpawnRef = useRef(0)
+  const popperYRef = useRef(progressToY(0))
   const ringsRef = useRef([])
   const popsRef = useRef(0)
   const missesRef = useRef(0)
@@ -43,6 +46,7 @@ export default function RingPopGame({ data, lives, violation, onFinish, send, on
   const comboRef = useRef(0)
   const bestComboRef = useRef(0)
   const flashRef = useRef(null)
+  const livesRef = useRef(STARTING_LIVES)
 
   const [pops, setPops] = useState(0)
   const [misses, setMisses] = useState(0)
@@ -50,7 +54,17 @@ export default function RingPopGame({ data, lives, violation, onFinish, send, on
   const [combo, setCombo] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const [flash, setFlash] = useState(null)
+  const [lives, setLives] = useState(STARTING_LIVES)
   const [done, setDone] = useState(false)
+  const { value: countdownValue, started, startedRef } = useStartCountdown()
+
+  // Anchor the session clock + spawn timer to the GO moment.
+  useEffect(() => {
+    if (started) {
+      startedAtRef.current = performance.now()
+      lastSpawnRef.current = 0
+    }
+  }, [started])
 
   useEffect(() => {
     const ctx = canvasRef.current.getContext('2d')
@@ -75,10 +89,20 @@ export default function RingPopGame({ data, lives, violation, onFinish, send, on
 
     function step(now) {
       if (!running) return
+
+      // Freeze gameplay while the 3-2-1-GO overlay is up — but still paint
+      // the canvas so it doesn't look hung.
+      if (!startedRef.current) {
+        ctx.fillStyle = '#0a0c11'
+        ctx.fillRect(0, 0, W, H)
+        raf = requestAnimationFrame(step)
+        return
+      }
+
       const elapsedMs = now - startedAtRef.current
       const dtMs = 1000 / 60
 
-      if (elapsedMs >= GAME_MS) {
+      if (elapsedMs >= GAME_MS || livesRef.current <= 0) {
         running = false
         setDone(true)
         return
@@ -90,7 +114,14 @@ export default function RingPopGame({ data, lives, violation, onFinish, send, on
         lastSpawnRef.current = now
       }
 
-      const popperY = progressToY(progressRef.current)
+      // Smoothly interpolate the popper toward the target Y. The sensor only
+      // updates ~20 Hz but we render at 60 fps, so without easing the popper
+      // visibly steps every 2-3 frames. Critically-damped lerp removes that
+      // staircase without adding perceptible input lag.
+      const targetY = progressToY(progressRef.current)
+      const smoothing = 1 - Math.pow(0.001, dtMs / 1000) // ~99.9% catch-up per second
+      popperYRef.current += (targetY - popperYRef.current) * smoothing
+      const popperY = popperYRef.current
 
       for (const r of ringsRef.current) {
         r.x += (r.vx * dtMs) / 1000
@@ -110,7 +141,8 @@ export default function RingPopGame({ data, lives, violation, onFinish, send, on
           } else {
             missesRef.current += 1
             comboRef.current = 0
-            flashRef.current = { text: 'MISS', at: now, color: '#e84c4c' }
+            livesRef.current = Math.max(0, livesRef.current - 1)
+            flashRef.current = { text: 'MISS −1 LIFE', at: now, color: '#e84c4c' }
           }
           r.scored = true
         }
@@ -153,6 +185,7 @@ export default function RingPopGame({ data, lives, violation, onFinish, send, on
         setMisses(missesRef.current)
         setScore(scoreRef.current)
         setCombo(comboRef.current)
+        setLives(livesRef.current)
         setElapsed(elapsedMs / 1000)
         if (flashRef.current && now - flashRef.current.at < 700) setFlash(flashRef.current)
         else setFlash(null)
@@ -177,6 +210,13 @@ export default function RingPopGame({ data, lives, violation, onFinish, send, on
     })
   }
 
+  useEffect(() => {
+    if (!done) return
+    const t = setTimeout(handleFinish, 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done])
+
   return (
     <div className="lg-root">
       {violation && <div className="lg-violation">Warning: {violation.message}</div>}
@@ -190,17 +230,19 @@ export default function RingPopGame({ data, lives, violation, onFinish, send, on
         <div className="lg-stat"><span>Misses</span><strong>{misses}</strong></div>
         <div className="lg-stat"><span>Combo</span><strong>x{combo}</strong></div>
         <div className="lg-stat"><span>Score</span><strong>{score}</strong></div>
+        <div className="lg-stat"><span>Lives</span><strong>{lives}/3</strong></div>
         <div className="lg-stat"><span>Lift</span><strong>{Math.round(progress * 100)}%</strong></div>
         <div className="lg-stat"><span>Axis Z</span><strong>{axisZ.toFixed(2)}</strong></div>
       </div>
 
-      <div className="lg-canvas-wrap">
+      <div className="lg-canvas-wrap" style={{ position: 'relative' }}>
         <canvas ref={canvasRef} width={W} height={H} className="lg-canvas" />
         {flash && (
           <div className="lg-flash" style={{ background: `${flash.color}22`, borderColor: flash.color, color: flash.color }}>
             {flash.text}
           </div>
         )}
+        <CountdownOverlay value={countdownValue} />
       </div>
       <div className="lg-hint">Raise your arm to align the popper with each ring as it crosses the right side.</div>
 

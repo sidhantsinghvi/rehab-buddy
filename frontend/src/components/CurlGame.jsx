@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import ArmVisualization from './ArmVisualization'
+import CountdownOverlay, { useStartCountdown } from './CountdownOverlay'
 import './CurlGame.css'
 
 function qualityLabel(q) {
@@ -21,6 +22,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
   const [editingHost, setEditingHost] = useState(false)
   const [hostInput, setHostInput] = useState('')
   const [displayHost, setDisplayHost] = useState('')
+  const { value: countdownValue } = useStartCountdown()
 
   // Sync displayHost from backend config when it arrives (first connect)
   useEffect(() => {
@@ -39,7 +41,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
   function submitHost() {
     const newHost = hostInput.trim()
     if (newHost) {
-      console.log('[RehabBuddy] Sending set_host:', newHost)
+      console.log('[RepRight] Sending set_host:', newHost)
       send({ action: 'set_host', host: newHost })
       // Optimistically update displayed IP without waiting for backend echo
       setDisplayHost(newHost)
@@ -128,7 +130,8 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
       )}
 
       {/* ── center stage ── */}
-      <div className="stage">
+      <div className="stage" style={{ position: 'relative' }}>
+        <CountdownOverlay value={countdownValue} />
 
         {/* rep flash overlay */}
         {flashVisible && flashLabel && (

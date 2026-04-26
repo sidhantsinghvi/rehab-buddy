@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { usePhyphoxDirect } from './hooks/usePhyphoxDirect'
 import Setup from './components/Setup'
 import AICoach from './components/AICoach'
@@ -16,10 +17,36 @@ import RingPopGame from './components/RingPopGame'
 import WingBalanceGame from './components/WingBalanceGame'
 import SessionSummary from './components/SessionSummary'
 
+// Screens that get the framer-motion page transition + animated backdrop.
+// Games and calibration are excluded so the sensor/render path stays clean.
+const META_SCREENS = new Set(['setup', 'exerciseSelect', 'aiCoach', 'select', 'summary'])
+
+const APPLE_EASE = [0.32, 0.72, 0, 1]
+const pageVariants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.7, ease: APPLE_EASE } },
+  exit:    { opacity: 0, y: -8, transition: { duration: 0.4, ease: APPLE_EASE } },
+}
+
+function Page({ id, children }) {
+  return (
+    <motion.div
+      key={id}
+      variants={pageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className="min-h-screen w-full"
+    >
+      {children}
+    </motion.div>
+  )
+}
+
 export default function App() {
   const [screen, setScreen] = useState('setup')
   const [finalData, setFinalData] = useState(null)
-  const [pendingGame, setPendingGame] = useState(null)  // set by AI coach
+  const [pendingGame, setPendingGame] = useState(null)
 
   const {
     data, repFlash, host, setHost, reset,
@@ -27,7 +54,22 @@ export default function App() {
     calibReps, calibStatus, calibAccY, limits,
     lives, violation,
     exercise, setExercise,
+    probeConnection,
   } = usePhyphoxDirect('')
+
+  const isMeta = META_SCREENS.has(screen)
+  const sensorConnected = data.connected && data.sensorConnected
+
+  // Sensor/render perf guard: when calibration or a game is mounted, drop the
+  // animated backdrop + noise overlay (see body.in-game in index.css).
+  useEffect(() => {
+    if (isMeta) {
+      document.body.classList.remove('in-game')
+    } else {
+      document.body.classList.add('in-game')
+    }
+    return () => document.body.classList.remove('in-game')
+  }, [isMeta])
 
   function send(msg) {
     if (msg.action === 'reset_session') reset()
@@ -36,7 +78,9 @@ export default function App() {
 
   function handleSetupDone(enteredHost) {
     if (enteredHost) setHost(enteredHost)
-    setScreen('exerciseSelect')
+    // AI coach is the primary entry — users can opt into manual selection
+    // from there if they prefer.
+    setScreen('aiCoach')
   }
 
   function handleExerciseSelect(ex) {
@@ -62,8 +106,11 @@ export default function App() {
     setScreen('calibration')
   }
 
-  function handleFinish() {
-    setFinalData(data)
+  function handleFinish(payload) {
+    // Each game builds its own per-session payload (rep_count, score,
+    // session_time, peak_angle, …). If a game supplies one we trust it;
+    // otherwise fall back to the live hook data (e.g. for the bicep tracker).
+    setFinalData(payload && typeof payload === 'object' ? payload : data)
     setScreen('summary')
   }
 
@@ -73,73 +120,125 @@ export default function App() {
     setScreen('setup')
   }
 
-  if (screen === 'setup') return <Setup onStart={handleSetupDone} />
+  // Calibration & games: render directly, no motion wrapper. This keeps the
+  // sensor pipeline and game rAF loop on a quiet, idle React tree.
+  function renderRaw() {
+    switch (screen) {
+      case 'calibration':
+        return (
+          <CalibrationScreen
+            calibReps={calibReps}
+            calibStatus={calibStatus}
+            calibAccY={calibAccY}
+            limits={limits}
+            exercise={exercise}
+            onDone={handleCalibrationDone}
+            onSkip={() => { skipCalibration(); handleCalibrationDone() }}
+            onBack={() => setScreen('exerciseSelect')}
+          />
+        )
+      case 'runner':
+        return <RunnerGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
+      case 'basketball':
+        return <BasketballGame data={data} repFlash={repFlash} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
+      case 'pong':
+        return <PongGame data={data} lives={lives} violation={violation} onFinish={handleFinish} onBack={() => setScreen('select')} />
+      case 'archery':
+        return <ArcheryGame data={data} lives={lives} violation={violation} onFinish={handleFinish} onBack={() => setScreen('select')} />
+      case 'tracker':
+        return (
+          <CurlGame
+            data={data}
+            repFlash={repFlash}
+            config={{ phyphox_host: host }}
+            send={send}
+            onFinish={handleFinish}
+            lives={lives}
+            violation={violation}
+            exercise={exercise}
+            onBack={() => setScreen('select')}
+          />
+        )
+      case 'lateral-raise':
+        return <LateralRaiseGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
+      case 'meteor-shield':
+        return <MeteorShieldGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
+      case 'ring-pop':
+        return <RingPopGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
+      case 'wing-balance':
+        return <WingBalanceGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
+      default:
+        return null
+    }
+  }
 
-  if (screen === 'exerciseSelect') return (
-    <ExerciseSelect onSelect={handleExerciseSelect} onBack={() => setScreen('setup')} onAICoach={() => setScreen('aiCoach')} />
-  )
+  // Meta screens: animated page transitions.
+  function renderMeta() {
+    switch (screen) {
+      case 'setup':
+        return (
+          <Setup
+            onStart={handleSetupDone}
+            probeConnection={probeConnection}
+            sensorConnected={sensorConnected}
+            onHostChange={setHost}
+            initialHost={host || '172.20.10.1'}
+          />
+        )
+      case 'exerciseSelect':
+        return (
+          <ExerciseSelect
+            onSelect={handleExerciseSelect}
+            onBack={() => setScreen('aiCoach')}
+            onAICoach={() => setScreen('aiCoach')}
+          />
+        )
+      case 'aiCoach':
+        return (
+          <AICoach
+            onSelect={handleAISelect}
+            onBack={() => setScreen('setup')}
+            onManual={() => setScreen('exerciseSelect')}
+          />
+        )
+      case 'select':
+        return <GameSelect onSelect={setScreen} exercise={exercise} onBack={() => setScreen('calibration')} />
+      case 'summary':
+        return <SessionSummary data={finalData} onRestart={handleRestart} onBack={() => setScreen('select')} />
+      default:
+        return null
+    }
+  }
 
-  if (screen === 'aiCoach') return (
-    <AICoach onSelect={handleAISelect} onBack={() => setScreen('exerciseSelect')} />
-  )
+  if (!isMeta) {
+    return renderRaw()
+  }
 
-  if (screen === 'calibration') return (
-    <CalibrationScreen
-      calibReps={calibReps}
-      calibStatus={calibStatus}
-      calibAccY={calibAccY}
-      limits={limits}
-      exercise={exercise}
-      onDone={handleCalibrationDone}
-      onSkip={() => { skipCalibration(); handleCalibrationDone() }}
-      onBack={() => setScreen('exerciseSelect')}
-    />
+  return (
+    <>
+      <SensorBadge connected={sensorConnected} host={host} />
+      <AnimatePresence mode="wait" initial={false}>
+        <Page id={screen}>{renderMeta()}</Page>
+      </AnimatePresence>
+    </>
   )
+}
 
-  if (screen === 'select') return (
-    <GameSelect onSelect={setScreen} exercise={exercise} onBack={() => setScreen('calibration')} />
+// Persistent live-signal indicator — visible on all meta screens after Setup.
+function SensorBadge({ connected, host }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: APPLE_EASE }}
+      className="fixed top-5 right-5 z-50 surface rounded-full pl-3 pr-4 py-1.5
+                 flex items-center gap-2.5 text-[12px]"
+    >
+      <span className={connected ? 'live-dot' : 'inline-block w-1.5 h-1.5 rounded-full bg-inkMute'} />
+      <span className={connected ? 'text-ink' : 'text-inkSoft'}>
+        {connected ? 'Live' : 'No signal'}
+      </span>
+      {host && <span className="text-inkMute font-mono">· {host}</span>}
+    </motion.div>
   )
-  if (screen === 'summary') return (
-    <SessionSummary data={finalData} onRestart={handleRestart} onBack={() => setScreen('select')} />
-  )
-
-  if (screen === 'runner') return (
-    <RunnerGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
-  )
-  if (screen === 'basketball') return (
-    <BasketballGame data={data} repFlash={repFlash} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
-  )
-  if (screen === 'pong') return (
-    <PongGame data={data} lives={lives} violation={violation} onFinish={handleFinish} onBack={() => setScreen('select')} />
-  )
-  if (screen === 'archery') return (
-    <ArcheryGame data={data} lives={lives} violation={violation} onFinish={handleFinish} onBack={() => setScreen('select')} />
-  )
-  if (screen === 'tracker') return (
-    <CurlGame
-      data={data}
-      repFlash={repFlash}
-      config={{ phyphox_host: host }}
-      send={send}
-      onFinish={handleFinish}
-      lives={lives}
-      violation={violation}
-      exercise={exercise}
-      onBack={() => setScreen('select')}
-    />
-  )
-  if (screen === 'lateral-raise') return (
-    <LateralRaiseGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
-  )
-  if (screen === 'meteor-shield') return (
-    <MeteorShieldGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
-  )
-  if (screen === 'ring-pop') return (
-    <RingPopGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
-  )
-  if (screen === 'wing-balance') return (
-    <WingBalanceGame data={data} lives={lives} violation={violation} onFinish={handleFinish} send={send} onBack={() => setScreen('select')} />
-  )
-
-  return null
 }

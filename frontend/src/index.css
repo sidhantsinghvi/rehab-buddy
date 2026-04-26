@@ -1,43 +1,240 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ────────────────────────────────────────────────────────────────────────
+   RepRight — athletic dark theme (graphite + signal lime)
+   ──────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --bg: #060b14;
-  --surface: #0d1a27;
-  --surface2: #132033;
-  --border: #1e3048;
-  --accent: #00d4ff;
-  --accent-dim: #0090b0;
-  --green: #00e676;
-  --green-dim: #00994d;
-  --amber: #ffd740;
-  --red: #ff5252;
-  --text: #e2f0ff;
-  --text-muted: #5a7a9a;
-  --font-display: 'Space Grotesk', system-ui, sans-serif;
-  --font-body: 'Inter', system-ui, sans-serif;
+  --bg:        #0E1013;
+  --surface:   #171A1F;
+  --surface-2: #1F2329;
+  --surface-3: #262B32;
+  --ink:       #F2EFEA;
+  --ink-soft:  #A8A6A0;
+  --ink-mute:  #5E6168;
+  --line:      rgba(255, 255, 255, 0.08);
+  --line-soft: rgba(255, 255, 255, 0.04);
+  --signal:    #D6FF4A;
+  --signal-dim:#A6CC2E;
+  --coral:     #FF8C6B;
+  --moss:      #7AB07C;
+  --amber:     #FFC66B;
+  --rose:      #FF6B7A;
+
+  /* Legacy aliases — keep existing game CSS coherent */
+  --surface2:    var(--surface-2);
+  --border:      var(--line);
+  --text:        var(--ink);
+  --text-muted:  var(--ink-soft);
+  --accent:      var(--signal);
+  --accent-dim:  var(--signal-dim);
+  --green:       var(--moss);
+  --green-dim:   #5E8A60;
+  --amber:       var(--amber);
+  --red:         var(--rose);
+
+  --font-serif: 'Fraunces', ui-serif, Georgia, serif;
+  --font-sans:  'Inter', system-ui, sans-serif;
 }
 
-/* ── Shared back button ──────────────────────────────────────────────── */
-.back-btn {
-  background: none;
-  border: none;
-  color: #5a7a9a;
-  font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
-  padding: 8px 4px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: color 0.15s;
-  align-self: flex-start;
-}
-.back-btn:hover { color: #e8eaf0; }
+* { box-sizing: border-box; }
 
 html, body, #root {
   height: 100%;
+  margin: 0;
+  padding: 0;
   background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-body);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: 'ss01', 'cv11';
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Atmospheric backdrop — graphite with two distant warm/cool light sources.
+   Pure CSS, animated drift, plus film grain so it never feels synthetic. */
+body {
+  position: relative;
+  background-color: var(--bg);
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: -10%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 700px at 12% 18%, rgba(214, 255, 74, 0.06), transparent 55%),
+    radial-gradient(800px 600px at 88% 90%, rgba(255, 140, 107, 0.05), transparent 55%),
+    radial-gradient(1200px 800px at 50% 50%, rgba(122, 176, 124, 0.025), transparent 60%);
+  filter: blur(2px);
+  animation: drift 18s ease-in-out infinite;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.06;
+  mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.5'/></svg>");
+}
+
+/* Sensor/game perf guard: when a game or calibration is mounted, drop the
+   animated radial drift and the mix-blend-mode noise overlay so nothing
+   composites behind the live canvas. Restored automatically on exit. */
+body.in-game::before,
+body.in-game::after {
+  display: none !important;
+}
+
+#root { position: relative; z-index: 1; }
+
+/* ── Component utilities ────────────────────────────────────────────── */
+@layer components {
+  .surface {
+    @apply bg-surface/80 backdrop-blur-md border border-[color:var(--line)];
+  }
+
+  .card {
+    @apply rounded-2xl bg-surface/70 backdrop-blur-md border border-[color:var(--line)]
+           transition-all duration-700 ease-apple;
+  }
+
+  .card-hover:hover {
+    @apply border-[color:var(--line)] bg-surface/90 -translate-y-0.5;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full
+           text-[14px] font-medium tracking-tight transition-all duration-500 ease-apple
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-signal/40;
+  }
+
+  .btn-primary {
+    @apply btn bg-signal text-bg
+           hover:-translate-y-px hover:shadow-glow
+           active:translate-y-0
+           disabled:bg-surface3 disabled:text-inkMute disabled:cursor-not-allowed
+           disabled:hover:translate-y-0 disabled:hover:shadow-none;
+  }
+
+  .btn-ghost {
+    @apply btn text-ink bg-transparent border border-[color:var(--line)]
+           hover:bg-surface hover:-translate-y-px;
+  }
+
+  .btn-text {
+    @apply inline-flex items-center gap-1.5 text-[13.5px] text-inkSoft
+           hover:text-ink transition-colors duration-300 ease-apple;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl bg-surface/70 border border-[color:var(--line)]
+           text-ink placeholder:text-inkMute font-mono text-[15px]
+           focus:outline-none focus:bg-surface focus:border-signal/40
+           transition-all duration-500 ease-apple;
+  }
+
+  .eyebrow {
+    @apply inline-block text-[11px] font-medium tracking-[0.18em] uppercase text-inkMute;
+  }
+
+  .display {
+    font-family: var(--font-serif);
+    font-feature-settings: 'ss01';
+    font-variation-settings: 'opsz' 96, 'SOFT' 50;
+    letter-spacing: -0.025em;
+    line-height: 1.02;
+    color: var(--ink);
+  }
+
+  .display-italic {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-variation-settings: 'opsz' 96, 'SOFT' 100;
+    letter-spacing: -0.02em;
+  }
+
+  .num {
+    font-family: var(--font-serif);
+    font-variation-settings: 'opsz' 144;
+    font-feature-settings: 'tnum';
+    letter-spacing: -0.04em;
+  }
+
+  .rule { @apply h-px w-full bg-[color:var(--line)]; }
+
+  /* Live indicator — small pulsing dot */
+  .live-dot {
+    @apply inline-block w-1.5 h-1.5 rounded-full bg-signal;
+    box-shadow: 0 0 0 0 rgba(214, 255, 74, 0.6);
+    animation: glow-pulse 2s ease-out infinite;
+  }
+
+  /* Heartbeat dot for active/training states */
+  .heartbeat-dot {
+    @apply inline-block w-2 h-2 rounded-full bg-signal;
+    animation: heartbeat 1.5s ease-in-out infinite;
+  }
+
+  /* Signal underline that draws on hover */
+  .signal-underline {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 0.7s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .signal-underline:hover { background-size: 100% 1px; }
+}
+
+/* ── Back link ──────────────────────────────────────────────────────── */
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.back-btn:hover { color: var(--ink); }
+
+/* ── Scrollbar ──────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.20); }
+::selection { background: rgba(214, 255, 74, 0.30); color: var(--ink); }
+
+/* ── Game screens: keep solid bg so nothing composites behind the canvas.
+   Sensor perf guard: do NOT make these transparent like sid-ui does. ── */
+.game-root,
+.runner-root,
+.pong-root,
+.archery-root,
+.bball-root,
+.lr-root,
+.lg-root {
+  background: var(--bg) !important;
+}
+
+/* Tame the existing exercise tag pill in CurlGame to fit dark theme */
+.exercise-tag {
+  background: rgba(214, 255, 74, 0.08) !important;
+  border-color: rgba(214, 255, 74, 0.30) !important;
+  color: var(--signal) !important;
 }

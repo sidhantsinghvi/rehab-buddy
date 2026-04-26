@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from dataclasses import asdict
 from typing import Set
 
@@ -180,7 +181,9 @@ async def startup():
 
 # Catalogue of every exercise the agent can prescribe. Each entry has a stable
 # numeric id so the LLM can pick by id (cheaper / less ambiguous than free-form
-# strings) and the backend can map back to the frontend's exercise key.
+# strings) and the backend can map back to the frontend's exercise key. The
+# `games` list is shown to the model so it knows what the patient will actually
+# be doing — picking an exercise is also picking a set of training modalities.
 _EXERCISE_CATALOGUE = [
     {
         "id": 1,
@@ -188,6 +191,11 @@ _EXERCISE_CATALOGUE = [
         "name": "Bicep curl",
         "targets": "elbow flexion · biceps brachii · brachialis",
         "indications": "biceps strain, distal biceps tendinopathy, elbow flexion weakness, post-immobilisation forearm deconditioning, generic upper-arm strengthening",
+        "games": [
+            {"id": 11, "key": "runner",     "name": "Corridor",   "desc": "Curl up to rise, relax to lower — stay between the lines."},
+            {"id": 12, "key": "basketball", "name": "Basketball", "desc": "Aim the hoop with your curl, lower the arm to release."},
+            {"id": 13, "key": "tracker",    "name": "Tracker",    "desc": "Plain rep counter for focused practice."},
+        ],
     },
     {
         "id": 2,
@@ -195,6 +203,11 @@ _EXERCISE_CATALOGUE = [
         "name": "Tricep extension",
         "targets": "elbow extension · triceps brachii (long/lateral/medial)",
         "indications": "triceps tendinopathy, posterior elbow pain, push-strength deficits, post-overhead-injury extension reconditioning",
+        "games": [
+            {"id": 21, "key": "pong",    "name": "Pong",    "desc": "Extend your arm to control the paddle. First to seven."},
+            {"id": 22, "key": "archery", "name": "Archery", "desc": "Extend to aim, hold steady to fire automatically."},
+            {"id": 23, "key": "tracker", "name": "Tracker", "desc": "Plain rep counter for focused practice."},
+        ],
     },
     {
         "id": 3,
@@ -202,30 +215,53 @@ _EXERCISE_CATALOGUE = [
         "name": "Lateral raise",
         "targets": "shoulder abduction · medial deltoid · supraspinatus · scapular stabilisers",
         "indications": "rotator cuff rehab, subacromial impingement, frozen shoulder mobility, deltoid weakness, post-op shoulder range-of-motion work",
+        "games": [
+            {"id": 31, "key": "lateral-raise", "name": "Tracker",       "desc": "Lift to band height, hold, lower."},
+            {"id": 32, "key": "meteor-shield", "name": "Meteor Shield", "desc": "Match meteor heights to block incoming hits."},
+            {"id": 33, "key": "ring-pop",      "name": "Ring Pop",      "desc": "Line up with floating rings as they pass."},
+            {"id": 34, "key": "wing-balance",  "name": "Wing Balance",  "desc": "Hold inside a drifting band — steady wins."},
+        ],
     },
 ]
 
 
 def _build_ai_system_prompt() -> str:
-    catalogue_lines = "\n".join(
-        f'  {{"id": {ex["id"]}, "key": "{ex["key"]}", "name": "{ex["name"]}", '
-        f'"targets": "{ex["targets"]}", "indications": "{ex["indications"]}"}}'
-        for ex in _EXERCISE_CATALOGUE
-    )
+    catalogue_json = json.dumps(_EXERCISE_CATALOGUE, indent=2)
     valid_ids = ", ".join(str(ex["id"]) for ex in _EXERCISE_CATALOGUE)
     return (
         "You are the RepRight triage agent — a rehab physiotherapist that picks ONE exercise "
         "from a fixed catalogue based on the patient's free-text description of their injury "
-        "or goal.\n\n"
-        "Reason silently. Pick the single exercise whose target muscles and indications best "
-        "match the patient. If the description is vague, default to the safest mobility option.\n\n"
-        "Catalogue (authoritative — do NOT invent new exercises):\n"
-        f"[\n{catalogue_lines}\n]\n\n"
-        "Respond with STRICT JSON only — no prose, no markdown fences, no trailing commentary. "
-        "Schema:\n"
+        "or goal. Each exercise comes with its training games; the patient will play those "
+        "games to perform the chosen exercise, so consider whether the games are appropriate "
+        "(load, complexity, safety) for the situation when ranking exercises.\n\n"
+        "Reasoning rules:\n"
+        "  • Pick the exercise whose target muscles and indications best match the patient.\n"
+        "  • If the description is vague, default to the safest mobility-focused option.\n"
+        "  • Never invent exercises or games outside the catalogue.\n\n"
+        "Catalogue (authoritative):\n"
+        f"{catalogue_json}\n\n"
+        "Respond with STRICT JSON ONLY — a single JSON object, no prose, no markdown fences, "
+        "no commentary, no trailing text. Schema:\n"
         '{"exercise_id": <int>, "reason": "<one concise clinical sentence, ≤ 22 words>"}\n\n'
-        f"`exercise_id` MUST be one of: {valid_ids}."
+        f"`exercise_id` MUST be one of: {valid_ids}. Do not return any other field."
     )
+
+
+def _extract_json_object(text: str) -> str:
+    """Robustly pull the first {...} block out of an LLM response.
+
+    Handles bare JSON, ```json fences, ``` fences, and prose that wraps a JSON
+    object. Falls back to the original text so json.loads can produce a clean
+    error if everything else fails.
+    """
+    s = text.strip()
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", s, re.DOTALL)
+    if fenced:
+        return fenced.group(1).strip()
+    bare = re.search(r"\{.*\}", s, re.DOTALL)
+    if bare:
+        return bare.group(0).strip()
+    return s
 
 
 class AICoachRequest(BaseModel):
@@ -242,9 +278,15 @@ async def ai_coach(req: AICoachRequest):
 
     payload = {
         "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 200,
+        "max_tokens": 300,
+        "temperature": 0,
         "system": _build_ai_system_prompt(),
-        "messages": [{"role": "user", "content": req.prompt.strip()}],
+        "messages": [
+            {"role": "user", "content": req.prompt.strip()},
+            # Pre-fill the assistant turn with `{` so the model is forced to
+            # continue inside a JSON object — avoids ```json fences entirely.
+            {"role": "assistant", "content": "{"},
+        ],
     }
     headers = {
         "Content-Type": "application/json",
@@ -256,6 +298,7 @@ async def ai_coach(req: AICoachRequest):
         async with httpx.AsyncClient(timeout=20.0) as client:
             r = await client.post("https://api.anthropic.com/v1/messages", json=payload, headers=headers)
     except httpx.HTTPError as e:
+        logger.exception("Anthropic upstream error")
         raise HTTPException(status_code=502, detail=f"upstream error: {e}")
 
     if r.status_code != 200:
@@ -263,26 +306,34 @@ async def ai_coach(req: AICoachRequest):
             err = r.json().get("error", {}).get("message", r.text)
         except Exception:
             err = r.text
+        logger.error("Anthropic non-200 (%s): %s", r.status_code, err)
         raise HTTPException(status_code=502, detail=f"Anthropic: {err}")
 
     body = r.json()
     raw = (body.get("content") or [{}])[0].get("text", "")
-    cleaned = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    # The assistant turn was prefilled with `{`; if the model continued cleanly
+    # the response won't include that opening brace, so re-attach it. If the
+    # model ignored the prefill and produced its own object somewhere in the
+    # text, the extractor will find it directly.
+    candidate = _extract_json_object(raw if "{" in raw else "{" + raw)
 
     try:
-        parsed = json.loads(cleaned)
+        parsed = json.loads(candidate)
     except json.JSONDecodeError:
+        logger.error("AI returned invalid JSON. raw=%r candidate=%r", raw, candidate)
         raise HTTPException(status_code=502, detail="AI returned invalid JSON")
 
     # Accept either the new id-based schema or the legacy key-based schema so a
     # mid-session model regression doesn't break the flow.
     chosen = None
-    if isinstance(parsed.get("exercise_id"), int):
-        chosen = next((e for e in _EXERCISE_CATALOGUE if e["id"] == parsed["exercise_id"]), None)
+    eid = parsed.get("exercise_id")
+    if isinstance(eid, (int, float)):
+        chosen = next((e for e in _EXERCISE_CATALOGUE if e["id"] == int(eid)), None)
     if chosen is None and isinstance(parsed.get("exercise"), str):
         chosen = next((e for e in _EXERCISE_CATALOGUE if e["key"] == parsed["exercise"]), None)
 
     if chosen is None:
+        logger.error("AI picked unknown exercise. parsed=%r", parsed)
         raise HTTPException(status_code=502, detail="AI returned an unknown exercise")
 
     return {
@@ -290,6 +341,7 @@ async def ai_coach(req: AICoachRequest):
         "exercise": chosen["key"],
         "name": chosen["name"],
         "reason": parsed.get("reason", ""),
+        "games": chosen["games"],
     }
 
 

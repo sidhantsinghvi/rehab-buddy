@@ -81,17 +81,6 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
         </div>
       )}
 
-      {/* ── game over overlay ── */}
-      {lives === 0 && (
-        <div className="violation-overlay violation-overlay--gameover">
-          <div className="violation-box">
-            <div className="violation-icon">💔</div>
-            <div className="violation-msg">Session ended — you exceeded your safe limits</div>
-            <button className="btn btn-primary" style={{marginTop: 16}} onClick={onFinish}>See Summary</button>
-          </div>
-        </div>
-      )}
-
       {/* ── connection status ── */}
       {!data.connected && (
         <div className="sensor-banner sensor-banner--error">

@@ -15,7 +15,7 @@ const SPAWN_MS_MIN = 700
 const METEOR_SPEED_START = 180
 const METEOR_SPEED_MAX = 360
 const GAME_MS = 60_000
-const STARTING_LIVES = 3
+const STARTING_LIVES = 6
 
 function fmt(secs) {
   const m = Math.floor(secs / 60)
@@ -68,6 +68,7 @@ export default function MeteorShieldGame({ data, violation, onFinish, send, onBa
     const ctx = canvasRef.current.getContext('2d')
     let raf
     let running = true
+    let lastNow = performance.now()
 
     function spawn(now) {
       const t = (now - startedAtRef.current) / GAME_MS
@@ -86,15 +87,21 @@ export default function MeteorShieldGame({ data, violation, onFinish, send, onBa
       if (!running) return
 
       // Countdown is showing — keep the canvas painted but freeze gameplay.
+      // Re-anchor lastNow so the first real frame doesn't get a giant dt and
+      // teleport the meteors / shield.
       if (!startedRef.current) {
         ctx.fillStyle = '#0a0c11'
         ctx.fillRect(0, 0, W, H)
+        lastNow = now
         raf = requestAnimationFrame(step)
         return
       }
 
       const elapsedMs = now - startedAtRef.current
-      const dtMs = 1000 / 60
+      // Real per-frame dt, clamped to 50ms so a tab-switch hiccup can't fling
+      // meteors across the canvas.
+      const dtMs = Math.min(50, now - lastNow)
+      lastNow = now
 
       if (elapsedMs >= GAME_MS || livesRef.current <= 0) {
         running = false
@@ -248,7 +255,7 @@ export default function MeteorShieldGame({ data, violation, onFinish, send, onBa
         <div className="lg-stat"><span>Score</span><strong>{score}</strong></div>
         <div className="lg-stat"><span>Lift</span><strong>{Math.round(progress * 100)}%</strong></div>
         <div className="lg-stat"><span>Axis Z</span><strong>{axisZ.toFixed(2)}</strong></div>
-        <div className="lg-stat"><span>Lives</span><strong>{lives}/3</strong></div>
+        <div className="lg-stat"><span>Lives</span><strong>{lives}/{STARTING_LIVES}</strong></div>
       </div>
 
       <div className="lg-canvas-wrap" style={{ position: 'relative' }}>

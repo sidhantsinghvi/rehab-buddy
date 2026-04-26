@@ -52,17 +52,25 @@ const REARM_BELOW = 0.13       // must drop below this before next shot loads
 const PTS_BASKET = 2
 const PTS_STREAK_BONUS = 1     // added to basket when streak ≥ 2
 
+// ── Lives ─────────────────────────────────────────────────────────────────
+const START_LIVES = 3
+
 // ── Levels ────────────────────────────────────────────────────────────────
-// Each level expands the hoop's vertical travel, speeds up its drift, and
-// enables auto-relocation on a timer. Level 1 is forgiving; level 5 is a
-// constantly-moving target that demands quick adjustments.
-const LEVELS = [
-  { label: 1, makesToNext: 3,    minY: HOOP_MIN_Y + 30, maxY: HOOP_MAX_Y - 20, drift: 0.06, autoMoveMs: Infinity },
-  { label: 2, makesToNext: 4,    minY: HOOP_MIN_Y + 15, maxY: HOOP_MAX_Y - 10, drift: 0.07, autoMoveMs: Infinity },
-  { label: 3, makesToNext: 5,    minY: HOOP_MIN_Y,      maxY: HOOP_MAX_Y,      drift: 0.09, autoMoveMs: 6000 },
-  { label: 4, makesToNext: 6,    minY: HOOP_MIN_Y,      maxY: HOOP_MAX_Y + 10, drift: 0.12, autoMoveMs: 4000 },
-  { label: 5, makesToNext: Infinity, minY: HOOP_MIN_Y - 10, maxY: HOOP_MAX_Y + 15, drift: 0.16, autoMoveMs: 3000 },
-]
+// Difficulty escalates as the user banks makes. Three rungs:
+//   L1 — gentle: tight hoop range, slow drift, full swish window.
+//   L2 — standard: full hoop range, faster drift, slightly tighter window.
+//   L3 — pressure: full range, fast drift, tight window, auto-relocates on a timer.
+const LEVEL_UP_AT = [5, 10]    // makes needed to reach L2, L3
+const LEVELS = {
+  1: { hoopMin: 180, hoopMax: 235, drift: 0.06, swishMul: 1.0,  autoMoveMs: 0,    label: 'WARMUP'  },
+  2: { hoopMin: 160, hoopMax: 245, drift: 0.10, swishMul: 0.88, autoMoveMs: 0,    label: 'RALLY'   },
+  3: { hoopMin: 150, hoopMax: 245, drift: 0.14, swishMul: 0.78, autoMoveMs: 6500, label: 'CLUTCH'  },
+}
+function levelFor(makes) {
+  if (makes >= LEVEL_UP_AT[1]) return 3
+  if (makes >= LEVEL_UP_AT[0]) return 2
+  return 1
+}
 
 function clamp01(x) {
   return x < 0 ? 0 : x > 1 ? 1 : x
@@ -99,7 +107,7 @@ function handPos(progress) {
   }
 }
 
-export default function BasketballGame({ data, lives, violation, onFinish, send, onBack }) {
+export default function BasketballGame({ data, violation, onFinish, send, onBack }) {
   const canvasRef = useRef(null)
 
   // React state only for things that drive HTML overlays. Everything else
@@ -108,8 +116,10 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
   const [gameOver, setGameOver] = useState(false)
   const [countdown, setCountdown] = useState(3)  // 3, 2, 1, 'GO', null
 
-  const livesRef = useRef(lives)
-  useEffect(() => { livesRef.current = lives }, [lives])
+  // Local lives — start at 3 and decrement on each hard miss.
+  const [livesLeft, setLivesLeft] = useState(START_LIVES)
+  const livesRef = useRef(START_LIVES)
+  useEffect(() => { livesRef.current = livesLeft }, [livesLeft])
 
   // Block shot detection until the countdown finishes
   const playingRef = useRef(false)
@@ -125,8 +135,8 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
   }, [countdown])
 
   useEffect(() => {
-    if (lives === 0 && !gameOver) setGameOver(true)
-  }, [lives, gameOver])
+    if (livesLeft === 0 && !gameOver) setGameOver(true)
+  }, [livesLeft, gameOver])
 
   // Hand off the latest progress reading into the loop's ref each render.
   const progressRef = useRef(0)
@@ -148,10 +158,8 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
       streak: 0,
       shots: 0,
       makes: 0,
-      levelIdx: 0,
-      makesAtLevelStart: 0,
-      levelFlash: 0,           // brief banner when a level-up happens
-      timeSinceMove: 0,        // seconds since the hoop last relocated
+      level: 1,
+      autoMoveTimer: 0,           // counts down at L3 to force a relocation
       swishGlow: 0,
       rimGlow: 0,
       shake: 0,                   // screen shake magnitude (px), decays
@@ -161,27 +169,26 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
       time: 0,                    // running time for ambient effects
     }
 
+    function cfg() { return LEVELS[s.level] }
+
     function moveHoop() {
-      const lv = LEVELS[s.levelIdx]
-      s.hoopTargetY = lv.minY + Math.random() * (lv.maxY - lv.minY)
+      const c = cfg()
+      s.hoopTargetY = c.hoopMin + Math.random() * (c.hoopMax - c.hoopMin)
       s.hoopMovePulse = 1
-      s.timeSinceMove = 0
+      if (c.autoMoveMs > 0) s.autoMoveTimer = c.autoMoveMs / 1000
     }
     moveHoop()
 
-    function tryLevelUp() {
-      const lv = LEVELS[s.levelIdx]
-      if (s.levelIdx >= LEVELS.length - 1) return
-      if (s.makes - s.makesAtLevelStart < lv.makesToNext) return
-      s.levelIdx++
-      s.makesAtLevelStart = s.makes
-      s.levelFlash = 1
-      s.shake = Math.max(s.shake, 8)
-      s.flashOverlay = Math.max(s.flashOverlay, 0.4)
-      spawnConfetti(W / 2, H / 2 - 40, 60)
-      spawnPopup(`LEVEL ${LEVELS[s.levelIdx].label}`, W / 2, H / 2, '#ffd740')
-      flash(`LEVEL ${LEVELS[s.levelIdx].label}`, 'in', 1100)
-      moveHoop()
+    function checkLevelUp() {
+      const next = levelFor(s.makes)
+      if (next !== s.level) {
+        s.level = next
+        s.shake = Math.max(s.shake, 5)
+        s.flashOverlay = 0.25
+        spawnPopup(`LEVEL ${next}`, W / 2, H / 2 - 40, '#ffd740')
+        flash(`LEVEL ${next} — ${cfg().label}`, 'in', 1100)
+        moveHoop()
+      }
     }
 
     function flash(text, kind, ms = 800) {
@@ -262,7 +269,9 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
         const dy = yAtRim - s.hoopY
 
         // Swish: ball passes cleanly through the opening, moving downward.
-        if (b.vy > 0 && Math.abs(dy) <= RIM_HALF - BALL_R) {
+        // Higher levels tighten the effective opening so near-misses kiss rim.
+        const swishWindow = (RIM_HALF - BALL_R) * cfg().swishMul
+        if (b.vy > 0 && Math.abs(dy) <= swishWindow) {
           b.scored = true
           s.makes++
           s.streak++
@@ -275,7 +284,7 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
           spawnPopup(`+${pts}`, HOOP_X, s.hoopY - 14, '#00e676')
           flash(s.streak >= 3 ? `🔥 ${s.streak}x SWISH` : 'SWISH! +' + pts, 'in', 900)
           moveHoop()
-          tryLevelUp()
+          checkLevelUp()
           return
         }
 
@@ -316,13 +325,13 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
         s.armed = true
       }
 
-      // Hoop drifts toward target so it's not jarring. Drift speed and
-      // auto-relocation cadence are dictated by the current level.
-      const lv = LEVELS[s.levelIdx]
-      s.hoopY += (s.hoopTargetY - s.hoopY) * lv.drift
-      s.timeSinceMove += dt
-      if (playingRef.current && s.timeSinceMove >= lv.autoMoveMs / 1000) {
-        moveHoop()
+      // Hoop drifts toward target so it's not jarring; pace scales with level.
+      s.hoopY += (s.hoopTargetY - s.hoopY) * cfg().drift
+
+      // L3 auto-relocates on a timer to keep pressure on the user.
+      if (cfg().autoMoveMs > 0 && livesRef.current > 0 && playingRef.current) {
+        s.autoMoveTimer -= dt
+        if (s.autoMoveTimer <= 0) moveHoop()
       }
 
       // Ball physics
@@ -350,11 +359,13 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
           if (Math.abs(b.vy) < 80) b.alive = false
         }
 
-        // Off-screen — finalize miss if it never scored or rimmed
+        // Off-screen — finalize miss if it never scored or rimmed.
+        // A clean miss costs a life; rim-outs only break the streak (handled elsewhere).
         if (b.x > W + 30 || b.x < -30 || b.y > H + 30) {
           if (!b.scored && !b.rimmed) {
             if (s.streak > 0) s.streak = 0
-            flash('MISS', 'miss', 600)
+            setLivesLeft(prev => Math.max(0, prev - 1))
+            flash('MISS −1', 'miss', 700)
             moveHoop()
           }
           b.alive = false
@@ -388,7 +399,6 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
       s.hoopMovePulse *= 0.94
       s.shake *= 0.85
       s.flashOverlay *= 0.86
-      s.levelFlash *= 0.95
       s.time += dt
     }
 
@@ -690,52 +700,31 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
       ctx.textAlign = 'left'
       ctx.fillText(`Score: ${s.score}`, 14, 26)
 
-      const acc = s.shots > 0 ? Math.round((s.makes / s.shots) * 100) : 0
-      ctx.textAlign = 'center'
-      ctx.fillText(`${s.makes}/${s.shots}  (${acc}%)`, W * 0.34, 26)
-
-      // Level pill — center of the HUD. Shows current level + progress bar
-      // toward the next one (capped at "MAX" once at the top).
-      const lvl = LEVELS[s.levelIdx]
-      const isMax = s.levelIdx >= LEVELS.length - 1
-      const made = s.makes - s.makesAtLevelStart
-      const need = lvl.makesToNext
-      const pillCx = W * 0.5
-      const pillW = 110
-      const pillH = 26
-      const pillX = pillCx - pillW / 2
-      const pillY = 7
-      ctx.fillStyle = s.levelFlash > 0.05 ? `rgba(255,215,64,${0.25 + s.levelFlash * 0.55})` : 'rgba(255,215,64,0.14)'
-      ctx.beginPath()
-      ctx.roundRect(pillX, pillY, pillW, pillH, 13)
-      ctx.fill()
-      ctx.strokeStyle = '#ffd740'
-      ctx.lineWidth = 1.5
-      ctx.stroke()
+      // Level pill
+      const levelText = `L${s.level} · ${cfg().label}`
+      ctx.font = 'bold 12px monospace'
+      const lw = ctx.measureText(levelText).width + 16
+      ctx.fillStyle = 'rgba(255,215,64,0.15)'
+      ctx.fillRect(W * 0.28 - lw / 2, 10, lw, 22)
+      ctx.strokeStyle = 'rgba(255,215,64,0.55)'
+      ctx.lineWidth = 1
+      ctx.strokeRect(W * 0.28 - lw / 2, 10, lw, 22)
       ctx.fillStyle = '#ffd740'
-      ctx.font = 'bold 13px monospace'
       ctx.textAlign = 'center'
-      ctx.fillText(`LV ${lvl.label}${isMax ? ' · MAX' : ''}`, pillCx, pillY + 17)
-      if (!isMax) {
-        const barX = pillX + 6
-        const barY = pillY + pillH - 4
-        const barW = pillW - 12
-        ctx.fillStyle = 'rgba(255,215,64,0.18)'
-        ctx.fillRect(barX, barY, barW, 2)
-        ctx.fillStyle = '#ffd740'
-        ctx.fillRect(barX, barY, barW * clamp01(made / need), 2)
-      }
+      ctx.fillText(levelText, W * 0.28, 26)
+
+      const acc = s.shots > 0 ? Math.round((s.makes / s.shots) * 100) : 0
+      ctx.fillStyle = '#e8eaf0'
+      ctx.font = 'bold 16px monospace'
+      ctx.fillText(`${s.makes}/${s.shots}  (${acc}%)`, W * 0.5, 26)
 
       if (s.streak >= 2) {
         ctx.fillStyle = '#ff9332'
-        ctx.font = 'bold 16px monospace'
-        ctx.textAlign = 'left'
-        ctx.fillText(`🔥 ${s.streak}x`, W * 0.66, 26)
+        ctx.fillText(`🔥 ${s.streak}x`, W * 0.68, 26)
       }
 
       ctx.fillStyle = '#e8eaf0'
       ctx.textAlign = 'right'
-      ctx.font = 'bold 16px monospace'
       const lv = livesRef.current
       ctx.fillText(['❤️','❤️','❤️'].map((_, i) => i < lv ? '❤️' : '🖤').join(''), W - 12, 26)
     }
@@ -750,8 +739,6 @@ export default function BasketballGame({ data, lives, violation, onFinish, send,
       ctx.font = '18px monospace'
       ctx.fillStyle = '#8b92a5'
       ctx.fillText(`${s.makes}/${s.shots} shots · ${s.score} pts`, W / 2, H / 2 + 14)
-      ctx.fillStyle = '#ffd740'
-      ctx.fillText(`Reached level ${LEVELS[s.levelIdx].label}`, W / 2, H / 2 + 40)
     }
 
     function draw() {

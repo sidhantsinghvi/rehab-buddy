@@ -5,6 +5,7 @@
   justify-content: center;
   background: #0d0f14;
   padding: 24px;
+  position: relative;
 }
 
 .calib-card {
@@ -139,4 +140,19 @@
   background: #2a2f3d;
   color: #555;
   cursor: not-allowed;
+}
+
+.calib-skip {
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: underline;
+  transition: color 0.15s;
+}
+
+.calib-skip:hover {
+  color: #8b92a5;
 }

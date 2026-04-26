@@ -15,7 +15,7 @@ function grade(score, reps) {
   return { letter: 'D', color: '#ff5252' }
 }
 
-export default function SessionSummary({ data, onRestart }) {
+export default function SessionSummary({ data, onRestart, onBack }) {
   const { rep_count, good_reps, score, session_time, peak_angle } = data
   const g = grade(score, rep_count)
   const goodPct = rep_count > 0 ? Math.round((good_reps / rep_count) * 100) : 0
@@ -64,9 +64,10 @@ export default function SessionSummary({ data, onRestart }) {
           {rep_count > 0 && good_reps / rep_count < 0.5 && "Try to reach the target zone on each rep."}
         </div>
 
-        <button className="btn-restart" onClick={onRestart}>
-          New Session
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn-back-games" onClick={onBack}>← Pick Another Game</button>
+          <button className="btn-restart" onClick={onRestart}>New Session</button>
+        </div>
       </div>
     </div>
   )

@@ -1,0 +1,56 @@
+.pong-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #0d1117;
+  min-height: 100vh;
+  padding: 16px;
+  gap: 12px;
+}
+
+.pong-canvas {
+  border-radius: 10px;
+  border: 1px solid #1e2a3a;
+  max-width: 100%;
+}
+
+.pong-violation {
+  background: #c0392b;
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+.pong-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 600px;
+}
+
+.pong-hint {
+  color: #8b92a5;
+  font-size: 14px;
+  text-align: center;
+}
+
+.p-btn {
+  padding: 10px 28px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.p-btn:hover { opacity: 0.85; }
+
+.p-btn--primary {
+  background: #4c9be8;
+  color: #fff;
+}

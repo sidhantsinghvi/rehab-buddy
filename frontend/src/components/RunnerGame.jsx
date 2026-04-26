@@ -13,7 +13,7 @@ const FREQ_BASE = 0.007      // starting curve frequency (very gentle)
 const FREQ_MAX = 0.022       // max frequency after 200m
 const HIT_COOLDOWN = 90      // frames of invincibility after hit (very forgiving)
 
-export default function RunnerGame({ data, lives: calibLives, violation, onFinish, send }) {
+export default function RunnerGame({ data, lives: calibLives, violation, onFinish, send, onBack }) {
   const canvasRef = useRef(null)
   const dataRef = useRef(data)
   const [distance, setDistance] = useState(0)
@@ -41,15 +41,11 @@ export default function RunnerGame({ data, lives: calibLives, violation, onFinis
       hitCooldown: 0,
       lives: 3,
       over: false,
-      localSmoothed: 0.5,
     }
 
     function playerY() {
-      // Light local EMA on top of hook's smoothed_progress for minimal extra lag
-      const target = Math.max(0, Math.min(1, dataRef.current.smoothed_progress))
-      g.localSmoothed += 0.88 * (target - g.localSmoothed)
-      // progress=0 → near bottom, progress=1 → near top
-      return H * 0.82 - g.localSmoothed * H * 0.64
+      const sp = Math.max(0, Math.min(1, dataRef.current.smoothed_progress))
+      return H * 0.82 - sp * H * 0.64
     }
 
     let raf
@@ -200,6 +196,7 @@ export default function RunnerGame({ data, lives: calibLives, violation, onFinis
             : 'Stay between the lines — curl up to go higher, relax to go lower'}
         </div>
         <div className="runner-actions">
+          <button className="r-btn r-btn--ghost" onClick={onBack}>← Back</button>
           {!gameOver && (
             <button className="r-btn r-btn--ghost" onClick={() => send({ action: 'reset_session' })}>Reset</button>
           )}

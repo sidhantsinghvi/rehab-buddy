@@ -2,7 +2,7 @@ import { useState } from 'react'
 import './Setup.css'
 
 export default function Setup({ onStart }) {
-  const [host, setHost] = useState('10.30.227.143')
+  const [host, setHost] = useState('172.20.10.1')
   const [step, setStep] = useState('config')
 
   function handleContinue() {
@@ -14,7 +14,7 @@ export default function Setup({ onStart }) {
       <div className="setup-card">
         <div className="setup-logo">💪</div>
         <h1 className="setup-title">RehabBuddy</h1>
-        <p className="setup-subtitle">Bicep curl trainer · powered by phyphox</p>
+        <p className="setup-subtitle">Rehab trainer · powered by phyphox</p>
 
         {step === 'config' && (
           <>

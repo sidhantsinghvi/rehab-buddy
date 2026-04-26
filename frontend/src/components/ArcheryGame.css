@@ -1,0 +1,66 @@
+.archery-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #0d1117;
+  min-height: 100vh;
+  padding: 16px;
+  gap: 12px;
+}
+
+.archery-canvas {
+  border-radius: 10px;
+  border: 1px solid #1e2a3a;
+  max-width: 100%;
+}
+
+.archery-violation {
+  background: #c0392b;
+  color: #fff;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 15px;
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.archery-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 600px;
+}
+
+.archery-hint {
+  color: #8b92a5;
+  font-size: 14px;
+  text-align: center;
+}
+
+.archery-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.a-btn {
+  padding: 10px 28px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.a-btn:hover { opacity: 0.85; }
+
+.a-btn--ghost  { background: #1e2330; color: #8b92a5; }
+.a-btn--primary { background: #4c9be8; color: #fff; }

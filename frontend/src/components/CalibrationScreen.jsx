@@ -1,16 +1,29 @@
 import './CalibrationScreen.css'
 
-export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, limits, onDone }) {
-  const pct = Math.round(((calibAccY + 13) / 26) * 100)
+export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, limits, onDone, onSkip, onBack, exercise = 'bicep' }) {
+  let pct
+  if (exercise === 'lateral') {
+    if (limits) {
+      // Use calibrated range: limits.max = rest, limits.min = raised
+      const range = limits.max - limits.min
+      pct = range > 0 ? Math.round(((limits.max - calibAccY) / range) * 100) : 0
+    } else {
+      // Pre-calibration estimate — assume ~8 m/s² range
+      pct = Math.round((-calibAccY / 8) * 100)
+    }
+  } else {
+    pct = Math.round(((calibAccY + 13) / 26) * 100)
+  }
   const barPct = Math.max(2, Math.min(98, pct))
 
   return (
     <div className="calib-root">
+      <button className="back-btn" style={{ position: 'absolute', top: 20, left: 24 }} onClick={onBack}>← Back</button>
       <div className="calib-card">
         <div className="calib-logo">🦾</div>
         <h1 className="calib-title">Set Your Limits</h1>
         <p className="calib-subtitle">
-          Do <strong>2 slow, comfortable curls</strong> at your full safe range.<br />
+          Do <strong>2 slow, comfortable {exercise === 'tricep' ? 'extensions' : exercise === 'lateral' ? 'lateral raises' : 'curls'}</strong> at your full safe range.<br />
           This sets the boundaries the game will enforce.
         </p>
 
@@ -19,7 +32,9 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
           <div className="calib-bar-track">
             <div className="calib-bar-fill" style={{ height: `${barPct}%` }} />
           </div>
-          <div className="calib-bar-label">{calibAccY.toFixed(1)}</div>
+          {exercise !== 'lateral' && (
+            <div className="calib-bar-label">{calibAccY.toFixed(1)}</div>
+          )}
         </div>
 
         {/* Status */}
@@ -28,7 +43,7 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
             <span className="calib-hint">Hold your arm at rest…</span>
           )}
           {calibStatus === 'ready' && calibReps === 0 && (
-            <span className="calib-hint">Ready — start your first curl</span>
+            <span className="calib-hint">Ready — start your first {exercise === 'tricep' ? 'extension' : exercise === 'lateral' ? 'raise' : 'curl'}</span>
           )}
           {calibStatus === 'ready' && calibReps === 1 && (
             <span className="calib-hint">Rep 1 done — do one more</span>
@@ -60,6 +75,10 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
           onClick={onDone}
         >
           {calibStatus === 'done' ? 'Start Session →' : `${calibReps}/2 reps…`}
+        </button>
+
+        <button className="calib-skip" onClick={onSkip}>
+          Skip — use full range (±13 m/s²)
         </button>
       </div>
     </div>

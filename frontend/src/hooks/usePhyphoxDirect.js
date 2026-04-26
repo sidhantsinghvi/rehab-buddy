@@ -1,35 +1,37 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 // ── Game signal processing ───────────────────────────────────────────────────
-const EMA_ALPHA   = 0.82   // higher = less smoothing lag
-const UP_START    = 0.30
-const TOP         = 0.72
-const TOP_HYST    = 0.12
-const DOWN_DONE   = 0.22
-const POLL_MS     = 16    // ~60 Hz
+const EMA_ALPHA   = 0.95   // higher = less smoothing lag
+const UP_START    = 0.25
+const TOP         = 0.62
+const TOP_HYST    = 0.10
+const DOWN_DONE   = 0.28
+const POLL_MS     = 0     // fire again immediately after each response
 
 // ── Calibration ──────────────────────────────────────────────────────────────
-const REST_SAMPLES_NEEDED = 20   // ~0.3s at 60Hz to establish rest baseline
-const REP_START_DEVIATION = 1.5  // accY must move this far from rest to start rep
-const REP_END_DEVIATION   = 0.8  // accY must return this close to rest to end rep
+const REST_SAMPLES_NEEDED = 20
+const REP_START_DEVIATION = 1.5
+const REP_END_DEVIATION   = 0.8
 const CALIB_REPS_NEEDED   = 2
-const LIMIT_TOLERANCE     = 0.8  // noise buffer around calibrated limits
-const GLOBAL_MIN          = -13  // absolute hard bounds regardless of calibration
+const LIMIT_TOLERANCE     = 0.3
+const GLOBAL_MIN          = -13
 const GLOBAL_MAX          = 13
 
 // ── Speed enforcement ────────────────────────────────────────────────────────
-const SPEED_THRESHOLD     = 30   // max |Δ accY| per second
+const SPEED_THRESHOLD     = 50
 
 // ── Lives ────────────────────────────────────────────────────────────────────
 const MAX_LIVES           = 3
-const VIOLATION_COOLDOWN  = 2000 // ms between violations
+const VIOLATION_COOLDOWN  = 2000
 
 const INITIAL_DATA = {
   connected: false,
   sensorConnected: false,
   raw_angle: 0,
+  raw_z: 0,
   progress: 0,
   smoothed_progress: 0,
+  lateral_progress: 0,
   rep_state: 'idle',
   rep_count: 0,
   good_reps: 0,
@@ -47,9 +49,10 @@ function scoreRep(peak) {
   return 2
 }
 
-function getFeedback(state, sp) {
-  if (state === 'idle')       return sp < 0.15 ? 'Ready — start curling!' : 'Up you go!'
-  if (state === 'going_up')   return sp < 0.45 ? 'Keep curling up' : sp < 0.68 ? 'Almost there!' : 'Hit the zone!'
+function getFeedback(exercise, state, sp) {
+  const verb = exercise === 'tricep' ? 'extending' : 'curling'
+  if (state === 'idle')       return sp < 0.15 ? `Ready — start ${verb}!` : 'Up you go!'
+  if (state === 'going_up')   return sp < 0.45 ? `Keep ${verb}` : sp < 0.68 ? 'Almost there!' : 'Hit the zone!'
   if (state === 'at_top')     return 'Hold it! Now lower slowly'
   if (state === 'going_down') return 'Lower it back down'
   return 'Go!'
@@ -59,52 +62,49 @@ export function usePhyphoxDirect(initialHost = '') {
   const [host, setHost] = useState(initialHost)
   const [data, setData] = useState(INITIAL_DATA)
   const [repFlash, setRepFlash] = useState(null)
-  const [gamePhase, setGamePhase] = useState('calibrating') // 'calibrating' | 'gaming'
+  const [gamePhase, setGamePhase] = useState('calibrating')
+  const [exercise, setExerciseState] = useState('bicep') // 'bicep' | 'tricep' | 'lateral'
 
-  // Calibration state
   const [calibReps, setCalibReps] = useState(0)
-  const [calibStatus, setCalibStatus] = useState('collecting_rest') // 'collecting_rest' | 'ready' | 'done'
+  const [calibStatus, setCalibStatus] = useState('collecting_rest')
   const [calibAccY, setCalibAccY] = useState(0)
   const [limits, setLimits] = useState(null)
 
-  // Enforcement state
   const [lives, setLives] = useState(MAX_LIVES)
-  const [violation, setViolation] = useState(null) // { type, message }
+  const [violation, setViolation] = useState(null)
 
   const sp = useRef({
-    // game signal processing
+    // bicep / tricep signal processing
     smoothed: 0, initialized: false,
     repState: 'idle', repCount: 0, goodReps: 0,
     score: 0, repPeak: 0, lastRepQuality: 0, peakAngle: 0,
     sessionStart: Date.now(),
 
-    // calibration
-    restSamples: [],
-    restValue: null,
-    calibMin: Infinity,
-    calibMax: -Infinity,
-    calibReps: 0,
-    inRep: false,
-
-    // set after calibration — used to orient progress correctly
-    curlRestValue: null,  // accY at rest (progress = 0)
-    curlTopValue: null,   // accY at top of curl (progress = 1)
-
-    // limits (set after calibration)
+    // bicep/tricep calibration (accY)
+    restSamples: [], restValue: null,
+    calibMin: Infinity, calibMax: -Infinity,
+    calibReps: 0, inRep: false,
+    curlRestValue: null, curlTopValue: null,
     limits: null,
 
+    // lateral calibration (accZ)
+    lateralRestSamples: [], lateralRestZ: null, lateralTopZ: null,
+    lateralCalibMinZ: Infinity, lateralCalibMaxZ: -Infinity,
+    lateralCalibReps: 0, lateralInRep: false,
+    lateralRepPeaks: [],
+    lateralDirCaptured: false, lateralTopIsMaxZ: false,
+
     // speed tracking
-    prevAccY: null,
-    prevTime: null,
+    prevAccY: null, prevAccZ: null, prevTime: null,
 
     // violation cooldown
-    lastViolationTime: 0,
-    lives: MAX_LIVES,
+    lastViolationTime: 0, lives: MAX_LIVES,
   })
 
   const prevRepCount = useRef(0)
+  const exerciseRef = useRef('bicep')
+  useEffect(() => { exerciseRef.current = exercise }, [exercise])
 
-  // ── Tell Vite proxy which host to forward to ─────────────────────────────
   useEffect(() => {
     if (!host) return
     fetch('/set-phyphox-host', {
@@ -114,12 +114,11 @@ export function usePhyphoxDirect(initialHost = '') {
     }).catch(() => {})
   }, [host])
 
-  // ── Calibration logic ─────────────────────────────────────────────────────
-  const processCalibration = useCallback((accY) => {
+  // ── Bicep/tricep calibration (accY) ──────────────────────────────────────
+  const processBicepCalibration = useCallback((accY) => {
     const s = sp.current
     setCalibAccY(accY)
 
-    // Phase 1: collect rest baseline
     if (s.restSamples.length < REST_SAMPLES_NEEDED) {
       s.restSamples.push(accY)
       if (s.restSamples.length === REST_SAMPLES_NEEDED) {
@@ -131,12 +130,10 @@ export function usePhyphoxDirect(initialHost = '') {
 
     const deviation = Math.abs(accY - s.restValue)
 
-    // Track min/max while in a rep
     if (s.inRep) {
       s.calibMin = Math.min(s.calibMin, accY)
       s.calibMax = Math.max(s.calibMax, accY)
 
-      // Rep ends when user returns close to rest
       if (deviation < REP_END_DEVIATION) {
         s.inRep = false
         s.calibReps++
@@ -148,29 +145,72 @@ export function usePhyphoxDirect(initialHost = '') {
           s.limits = { min: safeMin, max: safeMax }
           setLimits(s.limits)
 
-          // Orient progress: rest=0, top of curl=1
-          // whichever extreme (calibMin or calibMax) is farther from rest is "top"
           const distToMin = Math.abs(safeMin - s.restValue)
           const distToMax = Math.abs(safeMax - s.restValue)
           s.curlRestValue = s.restValue
           s.curlTopValue = distToMin > distToMax ? safeMin : safeMax
-
           setCalibStatus('done')
         }
       }
     } else {
-      // Start of a rep
+      if (deviation > REP_START_DEVIATION) s.inRep = true
+    }
+  }, [])
+
+  // ── Lateral calibration (accZ) ────────────────────────────────────────────
+  const processLateralCalibration = useCallback((accZ) => {
+    const s = sp.current
+    setCalibAccY(accZ)
+
+    if (s.lateralRestSamples.length < REST_SAMPLES_NEEDED) {
+      s.lateralRestSamples.push(accZ)
+      if (s.lateralRestSamples.length === REST_SAMPLES_NEEDED) {
+        s.lateralRestZ = s.lateralRestSamples.reduce((a, b) => a + b, 0) / s.lateralRestSamples.length
+        setCalibStatus('ready')
+      }
+      return
+    }
+
+    const off = accZ - s.lateralRestZ
+    const deviation = Math.abs(off)
+
+    if (s.lateralInRep) {
+      s.lateralCalibMinZ = Math.min(s.lateralCalibMinZ, accZ)
+      s.lateralCalibMaxZ = Math.max(s.lateralCalibMaxZ, accZ)
+
+      if (deviation < REP_END_DEVIATION) {
+        s.lateralInRep = false
+        // Store this rep's peak and reset for next rep
+        const repPeak = s.lateralTopIsMaxZ ? s.lateralCalibMaxZ : s.lateralCalibMinZ
+        s.lateralRepPeaks.push(repPeak)
+        s.lateralCalibMinZ = Infinity
+        s.lateralCalibMaxZ = -Infinity
+        s.lateralCalibReps++
+        setCalibReps(s.lateralCalibReps)
+
+        if (s.lateralCalibReps >= CALIB_REPS_NEEDED) {
+          // Average the peaks across reps to avoid noise spikes
+          s.lateralTopZ = s.lateralRepPeaks.reduce((a, b) => a + b, 0) / s.lateralRepPeaks.length
+          setLimits({
+            min: Math.min(s.lateralTopZ, s.lateralRestZ),
+            max: Math.max(s.lateralTopZ, s.lateralRestZ),
+          })
+          setCalibStatus('done')
+        }
+      }
+    } else {
       if (deviation > REP_START_DEVIATION) {
-        s.inRep = true
-        // Reset min/max tracking for this rep direction
+        s.lateralInRep = true
+        s.lateralCalibMinZ = accZ
+        s.lateralCalibMaxZ = accZ
       }
     }
   }, [])
 
-  // ── Game violation check ──────────────────────────────────────────────────
+  // ── Violation check (bicep/tricep only) ──────────────────────────────────
   const checkViolations = useCallback((accY, now) => {
     const s = sp.current
-    if (!s.limits) return
+    if (!s.limits || exerciseRef.current === 'lateral') return
 
     const sinceLastViolation = now - s.lastViolationTime
     if (sinceLastViolation < VIOLATION_COOLDOWN) return
@@ -178,41 +218,23 @@ export function usePhyphoxDirect(initialHost = '') {
     let violationType = null
     let message = null
 
-    // Speed check
     if (s.prevAccY !== null && s.prevTime !== null) {
       const dt = (now - s.prevTime) / 1000
-      if (dt > 0) {
-        const speed = Math.abs(accY - s.prevAccY) / dt
-        if (speed > SPEED_THRESHOLD) {
-          violationType = 'too_fast'
-          message = 'Too fast! Slow down to protect your injury'
-        }
+      if (dt > 0 && Math.abs(accY - s.prevAccY) / dt > SPEED_THRESHOLD) {
+        violationType = 'too_fast'
+        message = 'Too fast! Slow down to protect your injury'
       }
     }
 
-    // Range check (only if no speed violation — don't double-penalise)
     if (!violationType) {
       const { min, max } = s.limits
-      const direction = max > min ? 1 : -1 // which way is "up"
-
+      const direction = max > min ? 1 : -1
       if (direction === 1) {
-        // accY increases going up: max is top, min is rest
-        if (accY > max + LIMIT_TOLERANCE) {
-          violationType = 'too_high'
-          message = 'Too high! You went beyond your safe curl range'
-        } else if (accY < min - LIMIT_TOLERANCE) {
-          violationType = 'too_low'
-          message = 'Too low! Overextension — stay in your safe range'
-        }
+        if (accY > max + LIMIT_TOLERANCE)      { violationType = 'too_high'; message = 'Too high! Beyond your safe range' }
+        else if (accY < min - LIMIT_TOLERANCE) { violationType = 'too_low';  message = 'Too low! Stay in your safe range' }
       } else {
-        // accY decreases going up: min is top, max is rest
-        if (accY < min - LIMIT_TOLERANCE) {
-          violationType = 'too_high'
-          message = 'Too high! You went beyond your safe curl range'
-        } else if (accY > max + LIMIT_TOLERANCE) {
-          violationType = 'too_low'
-          message = 'Too low! Overextension — stay in your safe range'
-        }
+        if (accY < min - LIMIT_TOLERANCE)      { violationType = 'too_high'; message = 'Too high! Beyond your safe range' }
+        else if (accY > max + LIMIT_TOLERANCE) { violationType = 'too_low';  message = 'Too low! Stay in your safe range' }
       }
     }
 
@@ -226,45 +248,59 @@ export function usePhyphoxDirect(initialHost = '') {
   }, [])
 
   // ── Game signal processing ────────────────────────────────────────────────
-  const processGame = useCallback((accY) => {
+  const processGame = useCallback((accY, accZ) => {
     const s = sp.current
 
     s.peakAngle = Math.max(s.peakAngle, Math.abs(accY))
 
-    // Use calibrated orientation: restValue→0, topValue→1
-    // Works regardless of which direction accY moves during curl
-    let progress
+    // Bicep/tricep progress (accY)
+    let progress = 0
     if (s.curlRestValue !== null && s.curlTopValue !== null) {
       const range = s.curlTopValue - s.curlRestValue
       progress = range !== 0 ? Math.max(0, Math.min(1, (accY - s.curlRestValue) / range)) : 0
-    } else {
-      progress = 0  // wait for calibration
     }
 
     if (!s.initialized) { s.smoothed = progress; s.initialized = true }
     else s.smoothed += EMA_ALPHA * (progress - s.smoothed)
-
     const smth = s.smoothed
 
-    // State machine
-    const prev = s.repState
-    if (prev === 'idle') {
-      if (smth > UP_START) { s.repState = 'going_up'; s.repPeak = smth }
-    } else if (prev === 'going_up') {
-      s.repPeak = Math.max(s.repPeak, smth)
-      if (smth >= TOP) s.repState = 'at_top'
-    } else if (prev === 'at_top') {
-      s.repPeak = Math.max(s.repPeak, smth)
-      if (smth < TOP - TOP_HYST) s.repState = 'going_down'
-    } else if (prev === 'going_down') {
-      if (smth > TOP) { s.repState = 'at_top'; return }
-      if (smth < DOWN_DONE) {
-        s.repCount++
-        s.lastRepQuality = s.repPeak
-        s.score += scoreRep(s.repPeak)
-        if (s.repPeak >= 0.68) s.goodReps++
-        s.repPeak = 0
-        s.repState = 'idle'
+    // Lateral progress (accZ, instant — no extra EMA)
+    let lateralProgress = 0
+    if (s.lateralRestZ !== null && s.lateralTopZ !== null) {
+      const r = s.lateralRestZ, T = s.lateralTopZ
+      const lo = Math.min(r, T), hi = Math.max(r, T)
+      const range = hi - lo
+      if (range >= 0.2) {
+        lateralProgress = T > r
+          ? Math.max(0, Math.min(1, (accZ - lo) / range))
+          : Math.max(0, Math.min(1, (hi - accZ) / range))
+      }
+    } else {
+      // fallback: rest≈0, top≈-20 (accZ goes negative on raise)
+      lateralProgress = Math.max(0, Math.min(1, -accZ / 20))
+    }
+
+    // Rep state machine (bicep & tricep only — lateral games handle their own reps)
+    if (exerciseRef.current !== 'lateral') {
+      const prev = s.repState
+      if (prev === 'idle') {
+        if (smth > UP_START) { s.repState = 'going_up'; s.repPeak = smth }
+      } else if (prev === 'going_up') {
+        s.repPeak = Math.max(s.repPeak, smth)
+        if (smth >= TOP) s.repState = 'at_top'
+      } else if (prev === 'at_top') {
+        s.repPeak = Math.max(s.repPeak, smth)
+        if (smth < TOP - TOP_HYST) s.repState = 'going_down'
+      } else if (prev === 'going_down') {
+        if (smth > TOP) { s.repState = 'at_top' }
+        else if (smth < DOWN_DONE) {
+          s.repCount++
+          s.lastRepQuality = s.repPeak
+          s.score += scoreRep(s.repPeak)
+          if (s.repPeak >= 0.68) s.goodReps++
+          s.repPeak = 0
+          s.repState = 'idle'
+        }
       }
     }
 
@@ -274,12 +310,14 @@ export function usePhyphoxDirect(initialHost = '') {
       connected: true,
       sensorConnected: true,
       raw_angle: Math.round(accY * 10) / 10,
+      raw_z: Math.round(accZ * 10) / 10,
       progress: Math.round(progress * 1000) / 1000,
       smoothed_progress: Math.round(smth * 1000) / 1000,
+      lateral_progress: Math.round(lateralProgress * 1000) / 1000,
       rep_state: s.repState,
       rep_count: s.repCount,
       good_reps: s.goodReps,
-      feedback: getFeedback(s.repState, smth),
+      feedback: getFeedback(exerciseRef.current, s.repState, smth),
       score: s.score,
       session_time: Math.round(sessionTime * 10) / 10,
       peak_angle: Math.round(s.peakAngle * 10) / 10,
@@ -296,9 +334,8 @@ export function usePhyphoxDirect(initialHost = '') {
   const poll = useCallback(async (currentPhase) => {
     if (!host) return
 
-    const url = `/phyphox/get?accX=full&accY=full&accZ=full`
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(1400) })
+      const res = await fetch('/phyphox/get?accX=full&accY=full&accZ=full', { signal: AbortSignal.timeout(400) })
       if (!res.ok) throw new Error('http error')
       const json = await res.json()
 
@@ -310,6 +347,7 @@ export function usePhyphoxDirect(initialHost = '') {
 
       const buf = json.buffer ?? json
       const accY = buf?.accY?.buffer?.at(-1)
+      const accZ = buf?.accZ?.buffer?.at(-1) ?? 0
       if (accY == null) {
         setData(prev => ({ ...prev, connected: true, sensorConnected: true, feedback: 'Waiting for data…' }))
         return
@@ -318,21 +356,22 @@ export function usePhyphoxDirect(initialHost = '') {
       const now = performance.now()
 
       if (currentPhase === 'calibrating') {
-        processCalibration(accY)
+        if (exerciseRef.current === 'lateral') processLateralCalibration(accZ)
+        else processBicepCalibration(accY)
       } else {
         checkViolations(accY, now)
-        processGame(accY)
+        processGame(accY, accZ)
       }
 
       sp.current.prevAccY = accY
+      sp.current.prevAccZ = accZ
       sp.current.prevTime = now
 
     } catch {
       setData(prev => ({ ...prev, connected: true, sensorConnected: false }))
     }
-  }, [host, processCalibration, checkViolations, processGame])
+  }, [host, processBicepCalibration, processLateralCalibration, checkViolations, processGame])
 
-  // Keep gamePhase in a ref so poll closure always sees current value
   const gamePhaseRef = useRef(gamePhase)
   useEffect(() => { gamePhaseRef.current = gamePhase }, [gamePhase])
 
@@ -367,31 +406,54 @@ export function usePhyphoxDirect(initialHost = '') {
     s.repState = 'idle'; s.repCount = 0; s.goodReps = 0
     s.score = 0; s.repPeak = 0; s.lastRepQuality = 0; s.peakAngle = 0
     s.sessionStart = Date.now()
-    s.lives = MAX_LIVES
-    s.lastViolationTime = 0
-    // keep curlRestValue/curlTopValue/limits — calibration stays valid
+    s.lives = MAX_LIVES; s.lastViolationTime = 0
     prevRepCount.current = 0
-    setLives(MAX_LIVES)
-    setViolation(null)
-    setData(INITIAL_DATA)
+    setLives(MAX_LIVES); setViolation(null); setData(INITIAL_DATA)
   }, [])
 
   const resetCalibration = useCallback(() => {
     const s = sp.current
+    // bicep/tricep
     s.restSamples = []; s.restValue = null
     s.calibMin = Infinity; s.calibMax = -Infinity
     s.calibReps = 0; s.inRep = false; s.limits = null
     s.curlRestValue = null; s.curlTopValue = null
-    setCalibReps(0)
-    setCalibStatus('collecting_rest')
-    setLimits(null)
+    // lateral
+    s.lateralRestSamples = []; s.lateralRestZ = null; s.lateralTopZ = null
+    s.lateralCalibMinZ = Infinity; s.lateralCalibMaxZ = -Infinity
+    s.lateralCalibReps = 0; s.lateralInRep = false; s.lateralRepPeaks = []
+    s.lateralDirCaptured = false; s.lateralTopIsMaxZ = false
+    setCalibReps(0); setCalibStatus('collecting_rest'); setLimits(null)
     setGamePhase('calibrating')
   }, [])
 
+  const skipCalibration = useCallback(() => {
+    const s = sp.current
+    if (exerciseRef.current === 'lateral') {
+      const currentZ = Number.isFinite(s.prevAccZ) ? s.prevAccZ : 0
+      s.lateralRestZ = currentZ
+      s.lateralTopZ = currentZ - 10
+      setLimits({ min: s.lateralTopZ, max: currentZ })
+    } else {
+      const restVal = Number.isFinite(s.prevAccY) ? s.prevAccY : 0
+      const distToMin = Math.abs(GLOBAL_MIN - restVal)
+      const distToMax = Math.abs(GLOBAL_MAX - restVal)
+      s.curlRestValue = restVal
+      s.curlTopValue = distToMin > distToMax ? GLOBAL_MIN : GLOBAL_MAX
+      s.limits = { min: GLOBAL_MIN, max: GLOBAL_MAX }
+      setLimits(s.limits)
+    }
+    setCalibReps(CALIB_REPS_NEEDED)
+    setCalibStatus('done')
+  }, [])
+
+  const setExercise = useCallback((name) => { setExerciseState(name) }, [])
+
   return {
     data, repFlash, host, setHost, reset,
-    gamePhase, startGame, resetCalibration,
+    gamePhase, startGame, resetCalibration, skipCalibration,
     calibReps, calibStatus, calibAccY, limits,
     lives, violation,
+    exercise, setExercise,
   }
 }

@@ -15,7 +15,7 @@ function formatTime(secs) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-export default function CurlGame({ data, repFlash, config = {}, send, onFinish, lives = 3, violation = null }) {
+export default function CurlGame({ data, repFlash, config = {}, send, onFinish, lives = 3, violation = null, exercise = 'bicep', onBack }) {
   const [flashVisible, setFlashVisible] = useState(false)
   const [flashLabel, setFlashLabel] = useState(null)
   const [editingHost, setEditingHost] = useState(false)
@@ -47,7 +47,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
     setEditingHost(false)
   }
 
-  const progress = data.smoothed_progress
+  const progress = exercise === 'tricep' ? 1 - data.smoothed_progress : data.smoothed_progress
   const repState = data.rep_state
 
   const progressPct = Math.round(progress * 100)
@@ -62,7 +62,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
           <span className="stat-label">Time</span>
           <span className="stat-value mono">{formatTime(data.session_time)}</span>
         </div>
-        <div className="exercise-tag">Bicep Curl</div>
+        <div className="exercise-tag">{exercise === 'tricep' ? 'Tricep Extension' : 'Bicep Curl'}</div>
         <div className="stat-chip">
           <span className="stat-label">Lives</span>
           <span className="stat-value mono">{['❤️','❤️','❤️'].map((h,i) => i < lives ? '❤️' : '🖤').join('')}</span>
@@ -194,6 +194,7 @@ export default function CurlGame({ data, repFlash, config = {}, send, onFinish, 
 
       {/* ── actions ── */}
       <div className="action-row">
+        <button className="btn btn-ghost" onClick={onBack}>← Back</button>
         <button className="btn btn-ghost" onClick={() => send({ action: 'reset_session' })}>
           Reset
         </button>

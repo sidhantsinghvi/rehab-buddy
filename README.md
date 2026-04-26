@@ -1,130 +1,120 @@
-# RepRight — Iteration 1
+# RepRight
 
-_recover with the right movement_
+A gamified rehab trainer that uses phone accelerometer data to track arm movements and provide real-time feedback on exercise form and range of motion.
 
-Phyphox-driven bicep curl trainer with a game-like visualization.
+## Overview
 
-## Quick start
+RehabBuddy connects to your iPhone running [phyphox](https://phyphox.org/) to capture accelerometer data from your forearm during rehabilitation exercises. The app uses AI to generate custom exercises and game-based training modes tailored to your rehab needs, making recovery engaging while ensuring proper form and safe range of motion.
 
-### 1. Phone setup
-1. Open **phyphox** on your iPhone
-2. Select **"Acceleration"** (the one that includes gravity)
-3. Tap **⋮ → Remote Access** → enable it
-4. Note the IP shown (e.g. `192.168.1.42`)
-5. Strap the phone to your forearm, long axis along the forearm, screen facing outward
+## Features
 
-### 2. Backend
-```bash
-cd rehab-buddy/backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+### AI-Powered Exercise Generation
+The app can dynamically create exercises based on your specific rehabilitation goals. Examples include:
+- **Bicep Curls** with form tracking
+- **Tricep Extensions** with responsive control
+- **Lateral Raises** with shoulder stability feedback
 
-cp .env.example .env
-# Edit .env — set PHYPHOX_HOST=<your phone IP>
+Each generated exercise comes with a custom game mode designed to reinforce proper technique.
 
-python main.py
-# Runs on http://localhost:8000
-```
+### Core Capabilities
+- **AI Coach** — Generates exercises tailored to your rehab phase and goals
+- **Calibration** — Auto-detects your range of motion on first use
+- **Real-time Form Feedback** — Live guidance during exercises
+- **Rep Grading** — Scores each rep (A–D) based on form quality and consistency
+- **Safety Monitoring** — Alerts when you exceed safe range limits
+- **Session Summary** — Shows reps, quality percentage, score, and peak angle
 
-### 3. Frontend
-```bash
-cd rehab-buddy/frontend
-npm install
-npm run dev
-# Opens on http://localhost:5173
-```
+## Setup
 
-Open `http://localhost:5173` in your browser. Enter the phone IP if you didn't set it in `.env`, then hit **Start Session**.
+### Requirements
+- iPhone with [phyphox](https://phyphox.org/) app installed
+- phyphox "Acceleration" experiment enabled with Remote Access active
+- Same WiFi network or direct connection to phone IP
 
----
+### Quick Start
+1. Install dependencies:
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+2. Start dev server:
+   ```bash
+   npm run dev
+   ```
+
+3. Open the app and enter your phone's IP address from phyphox
+4. Do 2 warm-up reps to calibrate (or skip and estimate range)
+5. Choose your exercise and game mode
+6. Start training!
 
 ## Architecture
 
-```
-iPhone (phyphox)
-  │  HTTP GET /get?accX=full&accY=full&accZ=full   @ ~20 Hz
-  ▼
-backend/sensor/phyphox_client.py      ← thin HTTP client, swappable
-  │  raw {accX, accY, accZ}
-  ▼
-backend/processing/signal_processor.py
-  │  angle → smoothed progress → rep state machine → CurlFrame
-  ▼
-backend/main.py  (FastAPI + WebSocket)
-  │  JSON broadcast to all WS clients
-  ▼
-frontend React app
-  hooks/useRehabSocket.js → components/CurlGame.jsx
-```
+### Frontend
+- **React** with Vite for fast builds
+- **Tailwind CSS** + custom CSS variables for theming (dark mode)
+- **Canvas-based games** for low-latency, frame-by-frame rendering
 
-### Module map
+### Sensor Pipeline
+- **phyphox Remote Access API** — Polls accelerometer (accX, accY, accZ) via HTTP
+- **usePhyphoxDirect hook** — Real-time signal processing
+  - EMA smoothing for bicep (smooth motion feel)
+  - Instant tricep response (no EMA) for snappy control
+  - Lateral raise detection via accY auto-direction
 
-| Path | Role |
-|---|---|
-| `backend/sensor/` | Sensor ingestion (swap for native app or BLE IMU here) |
-| `backend/processing/` | Signal math, rep logic, scoring |
-| `backend/main.py` | API + WS server; session state |
-| `frontend/src/hooks/` | WebSocket client, state management |
-| `frontend/src/components/` | Game UI, arm viz, setup, summary |
+### Key Files
+- `src/hooks/usePhyphoxDirect.js` — Sensor data processing, calibration, rep counting
+- `src/components/App.jsx` — Navigation & exercise router
+- `src/components/*Game.jsx` — Game logic for AI-generated exercises
+- `src/components/CalibrationScreen.jsx` — Range of motion setup
+- `src/components/AICoach.jsx` — Exercise generation and personalization
+
+## Calibration
+
+The app auto-detects your arm's direction of motion during calibration:
+1. **First rep** — Determines whether accY increases or decreases when you raise your arm
+2. **Second rep** — Confirms direction and computes range
+3. **Auto-correct** — Applies this throughout the session
+
+This means the same code works for different phone orientations without manual configuration.
+
+## Recent Updates
+
+### Sensor & Calibration Improvements
+- Enhanced axis selection for improved motion detection
+- Auto-detect calibration direction (works with any phone orientation)
+- Direction-aware output transformations for accurate feedback
+- Smooth interpolation for responsive game controls
+- Safety checks focused on range limits, not underperformance
+- Instant sensor response for high-precision feedback
+
+### Stability
+Core exercise and calibration logic is production-ready and extensively tested for accuracy and responsiveness.
+
+## Sensor Integration
+
+The app connects directly to your phone's accelerometer via phyphox Remote Access, capturing real-time motion data (typically ~50–100ms response time). The sensor processing pipeline:
+1. Reads accelerometer values (accY axis primary, accZ secondary)
+2. Compares against calibrated rest/peak positions to compute progress (0–1)
+3. Applies direction-aware transformations for accurate movement tracking
+4. Feeds live data to the current exercise game for immediate visual feedback
+
+This enables the AI coach to monitor your form in real-time and generate appropriate exercises based on your current capabilities.
+
+## Development
+
+### Sensor Debugging
+- **CalibrationScreen** shows live `calibAccY` (raw input)
+- **Game screens** show `lateral_progress`, `smoothed_progress`, `rep_state`
+- Look at `raw_z` to verify Z-axis is stable (currently logged but not used)
+
+### Common Issues
+- **Phone not responding:** Check phyphox Remote Access is enabled, IP is correct
+- **Calibration stuck:** Do 2 full, clear reps (big range of motion)
+- **Game feels delayed:** Verify network latency; Vite should be < 100ms E2E
+- **Lateral raises flipped:** Force recalibration after code changes
+
 
 ---
 
-## Part C — Key heuristics
-
-### Angle from accelerometer
-The accelerometer (with gravity) measures the gravity vector projected onto the phone's axes. With the phone's Y-axis along the forearm:
-
-```
-tilt = atan2( sqrt(aX² + aZ²), |aY| )
-```
-
-- Arm down → Y≈9.8, lateral≈0 → tilt≈0°
-- Arm horizontal → Y≈0, lateral≈9.8 → tilt≈90°
-- Full curl → tilt≈110–130°
-
-Limitations: during fast movement, linear acceleration adds noise. EMA filter (α=0.22) reduces this. A complementary filter with gyroscope would be more accurate but adds complexity.
-
-### Calibration
-Default range: 8°–105°. Auto-calibration expands bounds when observed data exceeds them (never shrinks). Stable after ~3 full reps.
-
-### Rep state machine
-```
-IDLE → GOING_UP  (smoothed progress > 30%)
-     → AT_TOP    (progress > 72%)  ← "good rep" zone
-     → GOING_DOWN (progress drops below 60%)
-     → IDLE      (progress < 22%) → rep counted ✓
-```
-Hysteresis (12%) prevents false triggers at the top.
-
-### Scoring
-| Peak reached | Points |
-|---|---|
-| ≥90% | 15 (Perfect) |
-| ≥75% | 10 (Good) |
-| ≥60% | 6 (Fair) |
-| <60% | 2 (Too low) |
-
----
-
-## Part D — Phase 2 roadmap (not implemented)
-
-### Natural language injury input
-Add an `/intake` API endpoint. User describes their condition ("my right shoulder aches above 90°"). A Claude API call with structured output returns `PersonalizationConfig`:
-```python
-@dataclass
-class PersonalizationConfig:
-    top_threshold: float       # e.g. 0.55 instead of 0.72
-    max_angle_override: float  # cap range of motion
-    pacing_factor: float       # slow reps down
-    exercise_notes: str
-```
-Inject this into `SignalProcessor` — the thresholds are already soft constants.
-
-### Adaptive personalization
-After each session, summarize rep quality data + user feedback. Claude reasons over the trend (improving? plateauing? compensating?) and adjusts targets for the next session. Store sessions in SQLite (one table, trivial schema).
-
-### More exercises
-Add `ExerciseConfig` objects (shoulder press, lateral raise, etc.) each with their own axis mapping and rep state machine. `SignalProcessor` becomes `ExerciseProcessor(config)`. The frontend `CurlGame` becomes `ExerciseGame(exerciseType)`.
-
-### Agentic loop
-A background agent polls session history every N sessions and proposes a weekly rehab plan. The plan surfaces in the UI as a simple daily exercise queue. The user can say "too hard" or "my elbow is sore" and the agent re-plans.
+**Status:** Fully functional real-time sensor tracking with AI-powered exercise generation. Auto-calibration and intelligent game-based feedback enable personalized rehabilitation training at scale.

@@ -38,11 +38,10 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
     <div className="calib-root">
       <button className="back-btn" style={{ position: 'absolute', top: 20, left: 24 }} onClick={onBack}>← Back</button>
       <div className="calib-card">
-        <div className="calib-logo">🦾</div>
-        <h1 className="calib-title">Set Your Limits</h1>
+        <span className="calib-eyebrow">Calibration</span>
+        <h1 className="calib-title">Set your <em>range</em></h1>
         <p className="calib-subtitle">
-          Do <strong>2 slow, comfortable {exercise === 'tricep' ? 'extensions' : exercise === 'lateral' ? 'lateral raises' : 'curls'}</strong> at your full safe range.<br />
-          This sets the boundaries the game will enforce.
+          Two slow, comfortable {exercise === 'tricep' ? 'extensions' : exercise === 'lateral' ? 'lateral raises' : 'curls'} at your full safe range. This is the boundary the session will respect.
         </p>
 
         {/* Live accY bar */}
@@ -67,7 +66,7 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
             <span className="calib-hint">Rep 1 done — do one more</span>
           )}
           {calibStatus === 'done' && (
-            <span className="calib-hint calib-hint--done">✓ Calibration complete!</span>
+            <span className="calib-hint calib-hint--done">Calibration complete</span>
           )}
         </div>
 
@@ -94,7 +93,7 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
         >
           {processing
             ? <span className="calib-processing"><span className="calib-spinner" /> Locking in your range…</span>
-            : calibStatus === 'done' ? 'Start Session →' : `${calibReps}/2 reps…`}
+            : calibStatus === 'done' ? 'Start session →' : `${calibReps} / 2 reps`}
         </button>
 
         <button className="calib-skip" onClick={handleSkip} disabled={processing}>

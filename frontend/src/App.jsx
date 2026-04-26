@@ -78,7 +78,9 @@ export default function App() {
 
   function handleSetupDone(enteredHost) {
     if (enteredHost) setHost(enteredHost)
-    setScreen('exerciseSelect')
+    // AI coach is the primary entry — users can opt into manual selection
+    // from there if they prefer.
+    setScreen('aiCoach')
   }
 
   function handleExerciseSelect(ex) {
@@ -104,8 +106,11 @@ export default function App() {
     setScreen('calibration')
   }
 
-  function handleFinish() {
-    setFinalData(data)
+  function handleFinish(payload) {
+    // Each game builds its own per-session payload (rep_count, score,
+    // session_time, peak_angle, …). If a game supplies one we trust it;
+    // otherwise fall back to the live hook data (e.g. for the bicep tracker).
+    setFinalData(payload && typeof payload === 'object' ? payload : data)
     setScreen('summary')
   }
 
@@ -176,18 +181,26 @@ export default function App() {
             onStart={handleSetupDone}
             probeConnection={probeConnection}
             sensorConnected={sensorConnected}
+            onHostChange={setHost}
+            initialHost={host || '172.20.10.1'}
           />
         )
       case 'exerciseSelect':
         return (
           <ExerciseSelect
             onSelect={handleExerciseSelect}
-            onBack={() => setScreen('setup')}
+            onBack={() => setScreen('aiCoach')}
             onAICoach={() => setScreen('aiCoach')}
           />
         )
       case 'aiCoach':
-        return <AICoach onSelect={handleAISelect} onBack={() => setScreen('exerciseSelect')} />
+        return (
+          <AICoach
+            onSelect={handleAISelect}
+            onBack={() => setScreen('setup')}
+            onManual={() => setScreen('exerciseSelect')}
+          />
+        )
       case 'select':
         return <GameSelect onSelect={setScreen} exercise={exercise} onBack={() => setScreen('calibration')} />
       case 'summary':
@@ -203,9 +216,7 @@ export default function App() {
 
   return (
     <>
-      {screen !== 'setup' && (
-        <SensorBadge connected={sensorConnected} host={host} />
-      )}
+      <SensorBadge connected={sensorConnected} host={host} />
       <AnimatePresence mode="wait" initial={false}>
         <Page id={screen}>{renderMeta()}</Page>
       </AnimatePresence>

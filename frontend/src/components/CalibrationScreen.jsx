@@ -1,6 +1,24 @@
+import { useState } from 'react'
 import './CalibrationScreen.css'
 
+const PROCESSING_MS = 1000
+
 export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, limits, onDone, onSkip, onBack, exercise = 'bicep' }) {
+  const [processing, setProcessing] = useState(false)
+
+  // Brief "processing" beat after the user accepts their calibrated range.
+  // Sells that the app is locking in their personal limits before the game starts.
+  function handleStart() {
+    if (processing) return
+    setProcessing(true)
+    setTimeout(() => onDone(), PROCESSING_MS)
+  }
+  function handleSkip() {
+    if (processing) return
+    setProcessing(true)
+    setTimeout(() => onSkip(), PROCESSING_MS)
+  }
+
   let pct
   if (exercise === 'lateral') {
     if (limits) {
@@ -71,13 +89,15 @@ export default function CalibrationScreen({ calibReps, calibStatus, calibAccY, l
 
         <button
           className="calib-btn"
-          disabled={calibStatus !== 'done'}
-          onClick={onDone}
+          disabled={calibStatus !== 'done' || processing}
+          onClick={handleStart}
         >
-          {calibStatus === 'done' ? 'Start Session →' : `${calibReps}/2 reps…`}
+          {processing
+            ? <span className="calib-processing"><span className="calib-spinner" /> Locking in your range…</span>
+            : calibStatus === 'done' ? 'Start Session →' : `${calibReps}/2 reps…`}
         </button>
 
-        <button className="calib-skip" onClick={onSkip}>
+        <button className="calib-skip" onClick={handleSkip} disabled={processing}>
           Skip — use full range (±13 m/s²)
         </button>
       </div>

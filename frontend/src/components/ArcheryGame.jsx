@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import './ArcheryGame.css'
+import CountdownOverlay, { useStartCountdown } from './CountdownOverlay'
 
 const W = 600
 const H = 400
@@ -36,6 +37,7 @@ export default function ArcheryGame({ data, lives: calibLives, violation, onFini
   const [arrowsLeft, setArrowsLeft] = useState(MAX_ARROWS)
   const [done, setDone] = useState(false)
   const [lastHit, setLastHit] = useState(null)
+  const { value: countdownValue, startedRef } = useStartCountdown()
 
   useEffect(() => { dataRef.current = data }, [data])
 
@@ -75,6 +77,14 @@ export default function ArcheryGame({ data, lives: calibLives, violation, onFini
     let raf
     function loop() {
       if (g.over) return
+
+      // Wait for "GO" before charging or counting arrows.
+      if (!startedRef.current) {
+        const aimY = getAimY()
+        draw(aimY, 0)
+        raf = requestAnimationFrame(loop)
+        return
+      }
 
       // Target movement — speed ramps with arrows used
       const used = MAX_ARROWS - g.arrowsLeft
@@ -320,7 +330,10 @@ export default function ArcheryGame({ data, lives: calibLives, violation, onFini
       {violation && !done && (
         <div className="archery-violation">⚠️ {violation.message}</div>
       )}
-      <canvas ref={canvasRef} width={W} height={H} className="archery-canvas" />
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <canvas ref={canvasRef} width={W} height={H} className="archery-canvas" />
+        <CountdownOverlay value={countdownValue} compact />
+      </div>
       <div className="archery-bottom">
         <div className="archery-hint">
           {done

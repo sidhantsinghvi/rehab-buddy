@@ -64,7 +64,7 @@ def fetch():
 
 
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-fig.suptitle("RehabBuddy — Live Sensor Data", fontsize=13, fontweight="bold")
+fig.suptitle("RepRight — Live Sensor Data", fontsize=13, fontweight="bold")
 
 line_angle,    = ax1.plot([], [], color="#4C9BE8", lw=1.5, label="Tilt angle (°)")
 line_progress, = ax2.plot([], [], color="#2ECC71", lw=1.5, label="Progress (%)")
@@ -111,7 +111,7 @@ def update(_frame):
                 f"State: {state_str}  Angle: {frame.raw_angle:.1f}°"
             )
             fig.suptitle(
-                f"RehabBuddy  |  {frame.feedback}",
+                f"RepRight  |  {frame.feedback}",
                 fontsize=13, fontweight="bold"
             )
     else:

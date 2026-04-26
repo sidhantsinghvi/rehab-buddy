@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import './RunnerGame.css'
+import CountdownOverlay, { useStartCountdown } from './CountdownOverlay'
 
 const W = 600
 const H = 300
@@ -19,6 +20,7 @@ export default function RunnerGame({ data, lives: calibLives, violation, onFinis
   const [distance, setDistance] = useState(0)
   const [gameLives, setGameLives] = useState(3)
   const [gameOver, setGameOver] = useState(false)
+  const { value: countdownValue, startedRef } = useStartCountdown()
 
   useEffect(() => { dataRef.current = data }, [data])
 
@@ -51,6 +53,16 @@ export default function RunnerGame({ data, lives: calibLives, violation, onFinis
     let raf
     function loop() {
       if (g.over) return
+
+      // Wait for "GO" before scoring or moving the world.
+      if (!startedRef.current) {
+        const py = playerY()
+        const col = corridor[PLAYER_X] ?? corridor[0]
+        draw(py, col, GAP_START)
+        raf = requestAnimationFrame(loop)
+        return
+      }
+
       g.frameCount++
       g.distance += BASE_SPEED / 60  // speed is constant — distance only
 
@@ -188,7 +200,10 @@ export default function RunnerGame({ data, lives: calibLives, violation, onFinis
       {violation && !gameOver && (
         <div className="runner-violation">⚠️ {violation.message}</div>
       )}
-      <canvas ref={canvasRef} width={W} height={H} className="runner-canvas" />
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <canvas ref={canvasRef} width={W} height={H} className="runner-canvas" />
+        <CountdownOverlay value={countdownValue} compact />
+      </div>
       <div className="runner-bottom">
         <div className="runner-hint">
           {gameOver

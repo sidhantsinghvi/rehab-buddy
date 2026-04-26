@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './LateralGames.css'
+import CountdownOverlay, { useStartCountdown } from './CountdownOverlay'
 
 const W = 920
 const H = 460
@@ -14,6 +15,7 @@ const SPAWN_MS_MIN = 700
 const METEOR_SPEED_START = 180
 const METEOR_SPEED_MAX = 360
 const GAME_MS = 60_000
+const STARTING_LIVES = 3
 
 function fmt(secs) {
   const m = Math.floor(secs / 60)
@@ -27,7 +29,7 @@ function progressToY(p) {
   return bot - p * (bot - top)
 }
 
-export default function MeteorShieldGame({ data, lives, violation, onFinish, send, onBack }) {
+export default function MeteorShieldGame({ data, violation, onFinish, send, onBack }) {
   const progress = Number(data?.lateral_progress) || 0
   const axisZ = Number(data?.raw_z) || 0
   const progressRef = useRef(0)
@@ -36,18 +38,31 @@ export default function MeteorShieldGame({ data, lives, violation, onFinish, sen
   const canvasRef = useRef(null)
   const startedAtRef = useRef(performance.now())
   const lastSpawnRef = useRef(0)
+  const playerYRef = useRef(progressToY(0))
   const meteorsRef = useRef([])
   const blocksRef = useRef(0)
   const missesRef = useRef(0)
   const scoreRef = useRef(0)
   const flashRef = useRef(null)
+  const livesRef = useRef(STARTING_LIVES)
 
   const [blocks, setBlocks] = useState(0)
   const [misses, setMisses] = useState(0)
   const [score, setScore] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const [flash, setFlash] = useState(null)
+  const [lives, setLives] = useState(STARTING_LIVES)
   const [done, setDone] = useState(false)
+  const { value: countdownValue, started, startedRef } = useStartCountdown()
+
+  // Anchor the game clock to the moment the countdown finishes so the 60s
+  // session timer doesn't burn during 3-2-1.
+  useEffect(() => {
+    if (started) {
+      startedAtRef.current = performance.now()
+      lastSpawnRef.current = 0
+    }
+  }, [started])
 
   useEffect(() => {
     const ctx = canvasRef.current.getContext('2d')
@@ -69,10 +84,19 @@ export default function MeteorShieldGame({ data, lives, violation, onFinish, sen
 
     function step(now) {
       if (!running) return
+
+      // Countdown is showing — keep the canvas painted but freeze gameplay.
+      if (!startedRef.current) {
+        ctx.fillStyle = '#0a0c11'
+        ctx.fillRect(0, 0, W, H)
+        raf = requestAnimationFrame(step)
+        return
+      }
+
       const elapsedMs = now - startedAtRef.current
       const dtMs = 1000 / 60
 
-      if (elapsedMs >= GAME_MS) {
+      if (elapsedMs >= GAME_MS || livesRef.current <= 0) {
         running = false
         setDone(true)
         return
@@ -84,7 +108,13 @@ export default function MeteorShieldGame({ data, lives, violation, onFinish, sen
         lastSpawnRef.current = now
       }
 
-      const playerY = progressToY(progressRef.current)
+      // Smooth the shield position toward the sensor target. Sensor updates
+      // ~20 Hz, render is 60 fps, so without easing the shield steps every
+      // 2-3 frames. Critically-damped lerp removes the staircase.
+      const targetY = progressToY(progressRef.current)
+      const smoothing = 1 - Math.pow(0.001, dtMs / 1000)
+      playerYRef.current += (targetY - playerYRef.current) * smoothing
+      const playerY = playerYRef.current
 
       for (const m of meteorsRef.current) {
         m.x += (m.vx * dtMs) / 1000
@@ -97,7 +127,8 @@ export default function MeteorShieldGame({ data, lives, violation, onFinish, sen
             flashRef.current = { text: 'BLOCKED +' + (10 + Math.max(0, Math.round(20 - dy / 3))), at: now, color: '#4ce89b' }
           } else {
             missesRef.current += 1
-            flashRef.current = { text: 'MISS', at: now, color: '#e84c4c' }
+            livesRef.current = Math.max(0, livesRef.current - 1)
+            flashRef.current = { text: 'MISS −1 LIFE', at: now, color: '#e84c4c' }
           }
           m.scored = true
         }
@@ -168,6 +199,7 @@ export default function MeteorShieldGame({ data, lives, violation, onFinish, sen
         setBlocks(blocksRef.current)
         setMisses(missesRef.current)
         setScore(scoreRef.current)
+        setLives(livesRef.current)
         setElapsed(elapsedMs / 1000)
         if (flashRef.current && now - flashRef.current.at < 700) {
           setFlash(flashRef.current)
@@ -195,6 +227,13 @@ export default function MeteorShieldGame({ data, lives, violation, onFinish, sen
     })
   }
 
+  useEffect(() => {
+    if (!done) return
+    const t = setTimeout(handleFinish, 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done])
+
   return (
     <div className="lg-root">
       {violation && <div className="lg-violation">Warning: {violation.message}</div>}
@@ -212,13 +251,14 @@ export default function MeteorShieldGame({ data, lives, violation, onFinish, sen
         <div className="lg-stat"><span>Lives</span><strong>{lives}/3</strong></div>
       </div>
 
-      <div className="lg-canvas-wrap">
+      <div className="lg-canvas-wrap" style={{ position: 'relative' }}>
         <canvas ref={canvasRef} width={W} height={H} className="lg-canvas" />
         {flash && (
           <div className="lg-flash" style={{ background: `${flash.color}22`, borderColor: flash.color, color: flash.color }}>
             {flash.text}
           </div>
         )}
+        <CountdownOverlay value={countdownValue} />
       </div>
       <div className="lg-hint">Raise your arm to align the shield with each incoming meteor.</div>
 

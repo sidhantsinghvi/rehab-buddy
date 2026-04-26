@@ -3,12 +3,21 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 const EASE = [0.32, 0.72, 0, 1]
 
+// Slow, deliberate cadence so the agent feels like it's reasoning, not just
+// firing a single HTTP request. Each line lands roughly a second apart and the
+// final pad gives the model's response a moment to "settle" on screen.
+const THINKING_LINE_MS = 1100
+const FINAL_HOLD_MS = 1400
+
 const THINKING_LINES = [
-  'Reading your situation',
-  'Identifying affected muscle groups',
-  'Checking exercise compatibility',
-  'Analysing movement patterns',
-  'Selecting an appropriate plan',
+  'Reading your description',
+  'Mapping symptoms to affected joints',
+  'Identifying involved muscle groups',
+  'Cross-checking rehab indications',
+  'Scoring the exercise catalogue',
+  'Weighing safety vs. mobility goals',
+  'Selecting the best-fit movement',
+  'Drafting a rationale for your plan',
 ]
 
 const EXERCISE_GAMES = {
@@ -36,7 +45,7 @@ const EXERCISE_LABELS = {
   lateral: { name: 'Lateral raises',    region: 'Shoulder abduction', accent: 'text-moss'  },
 }
 
-export default function AICoach({ onSelect, onBack }) {
+export default function AICoach({ onSelect, onBack, onManual }) {
   const [step, setStep]             = useState('input')
   const [prompt, setPrompt]         = useState('')
   const [thinkingLines, setThinkingLines] = useState([])
@@ -51,10 +60,10 @@ export default function AICoach({ onSelect, onBack }) {
     setError(null)
 
     THINKING_LINES.forEach((line, i) => {
-      setTimeout(() => setThinkingLines(prev => [...prev, line]), i * 600)
+      setTimeout(() => setThinkingLines(prev => [...prev, line]), i * THINKING_LINE_MS)
     })
 
-    const minWait = THINKING_LINES.length * 600 + 600
+    const minWait = THINKING_LINES.length * THINKING_LINE_MS + FINAL_HOLD_MS
 
     try {
       const res = await fetch('/api/ai-coach', {
@@ -237,9 +246,11 @@ export default function AICoach({ onSelect, onBack }) {
         </div>
 
         <div className="mt-6 flex items-center justify-between">
-          <p className="text-[12px] text-inkMute">
-            Runs through the RehabBuddy backend. Your key never leaves the server.
-          </p>
+          {onManual ? (
+            <button onClick={onManual} className="btn-text">
+              Pick manually <span aria-hidden>→</span>
+            </button>
+          ) : <span />}
           <button
             className="btn-primary"
             onClick={handleSubmit}

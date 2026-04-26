@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const EASE = [0.32, 0.72, 0, 1]
@@ -10,9 +10,17 @@ const STEPS = [
   { t: 'Strap it to your arm',  d: 'Long axis along your forearm, screen facing out.' },
 ]
 
-export default function Setup({ onStart, probeConnection, sensorConnected }) {
-  const [host, setHost]     = useState('172.20.10.1')
-  const [step, setStep]     = useState('config')
+export default function Setup({ onStart, probeConnection, sensorConnected, onHostChange, initialHost = '172.20.10.1' }) {
+  const [host, setHostLocal] = useState(initialHost)
+  const [step, setStep]      = useState('config')
+
+  function setHost(next) {
+    setHostLocal(next)
+    onHostChange?.(next)
+  }
+
+  // Sync the badge to the input on mount so it reflects the IP being typed.
+  useEffect(() => { onHostChange?.(host) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [probing, setProbing]   = useState(false)
   const [probeOk, setProbeOk]   = useState(false)
@@ -55,11 +63,11 @@ export default function Setup({ onStart, probeConnection, sensorConnected }) {
             Sensor-driven training
           </span>
           <h1 className="display text-[68px] sm:text-[96px] leading-[0.95] tracking-tightest">
-            Rehab<span className="display-italic text-signal">Buddy</span>
+            Rep<span className="display-italic text-signal">Right</span>
           </h1>
           <p className="mt-5 text-inkSoft text-[17px] max-w-md mx-auto leading-relaxed">
-            Turn your phone into a coach. Real-time form feedback,
-            built around your range of motion.
+            Turn your phone into an AI physiotherapist with real-time
+            feedback that adapts to your mobility and injury needs.
           </p>
         </header>
 
@@ -160,10 +168,6 @@ export default function Setup({ onStart, probeConnection, sensorConnected }) {
               transition={{ duration: 0.55, ease: EASE }}
             >
               <div className="card p-10 text-center">
-                <span className="eyebrow mb-6 inline-flex items-center gap-2">
-                  <span className={sensorConnected ? 'heartbeat-dot' : 'inline-block w-2 h-2 rounded-full bg-inkMute'} />
-                  {sensorConnected ? 'Live signal' : 'Awaiting signal'}
-                </span>
                 <h2 className="display text-[44px] mb-4">
                   You're <span className="display-italic text-signal">set up.</span>
                 </h2>

@@ -156,3 +156,28 @@
 .calib-skip:hover {
   color: #8b92a5;
 }
+
+.calib-skip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.calib-processing {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.calib-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: calib-spin 0.7s linear infinite;
+}
+
+@keyframes calib-spin {
+  to { transform: rotate(360deg); }
+}
+

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import './PongGame.css'
+import CountdownOverlay, { useStartCountdown } from './CountdownOverlay'
 
 const W = 600
 const H = 400
@@ -19,6 +20,7 @@ export default function PongGame({ data, lives: calibLives, violation, onFinish,
   const [aiScore, setAiScore] = useState(0)
   const [done, setDone] = useState(false)
   const [winner, setWinner] = useState(null)
+  const { value: countdownValue, startedRef } = useStartCountdown()
 
   useEffect(() => { dataRef.current = data }, [data])
 
@@ -53,6 +55,13 @@ export default function PongGame({ data, lives: calibLives, violation, onFinish,
     let raf
     function loop() {
       if (g.over) return
+
+      // Wait for "GO" before letting the ball move or paddles score.
+      if (!startedRef.current) {
+        draw()
+        raf = requestAnimationFrame(loop)
+        return
+      }
 
       // Player paddle from arm
       const sp = Math.max(0, Math.min(1, dataRef.current.progress))
@@ -211,7 +220,10 @@ export default function PongGame({ data, lives: calibLives, violation, onFinish,
       {violation && !done && (
         <div className="pong-violation">⚠️ {violation.message}</div>
       )}
-      <canvas ref={canvasRef} width={W} height={H} className="pong-canvas" />
+      <div style={{ position: 'relative', display: 'inline-block' }}>
+        <canvas ref={canvasRef} width={W} height={H} className="pong-canvas" />
+        <CountdownOverlay value={countdownValue} compact />
+      </div>
       <div className="pong-bottom">
         <div className="pong-hint">
           {done

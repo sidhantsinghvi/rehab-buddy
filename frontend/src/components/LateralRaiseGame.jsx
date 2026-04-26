@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import './LateralRaiseGame.css'
+import CountdownOverlay, { useStartCountdown } from './CountdownOverlay'
 
 const START_LIFT = 0.15
 const BAND_LOW = 0.50
@@ -7,6 +8,13 @@ const BAND_HIGH = 0.95
 const OVER_RAISE = 1.5    // effectively disabled — progress is clamped to 1.0
 const RETURN_DOWN = 0.12
 const HOLD_MS = 200
+
+// Hard safety ceiling on the raw lateral axis. accZ < this is treated as
+// "raised past safe range" and surfaces a too-high alert.
+const AXIS_Z_TOO_HIGH = -7
+const TOO_HIGH_COOLDOWN_MS = 1500
+const STARTING_LIVES = 3
+const GAME_MS = 60_000
 
 function formatTime(secs) {
   const m = Math.floor(secs / 60)
@@ -22,12 +30,13 @@ function scoreRaise(peak, holdMs, overRaised) {
   return { points: 2, label: 'Too shallow' }
 }
 
-export default function LateralRaiseGame({ data, lives, violation, onFinish, send, onBack }) {
+export default function LateralRaiseGame({ data, violation, onFinish, send, onBack }) {
   const [reps, setReps] = useState(0)
   const [goodReps, setGoodReps] = useState(0)
   const [score, setScore] = useState(0)
   const [feedback, setFeedback] = useState('Lift to shoulder-height band, hold briefly, then lower')
   const [flash, setFlash] = useState(null)
+  const [lives, setLives] = useState(STARTING_LIVES)
 
   const phaseRef = useRef('idle')
   const peakRef = useRef(0)
@@ -39,13 +48,36 @@ export default function LateralRaiseGame({ data, lives, violation, onFinish, sen
   const goodRepRef = useRef(0)
   const scoreRef = useRef(0)
   const peakSessionRef = useRef(0)
+  const lastTooHighRef = useRef(0)
+  const [tooHigh, setTooHigh] = useState(false)
+  const { value: countdownValue, started, startedRef } = useStartCountdown()
 
   const axisZ = Number(data?.raw_z) || 0
   const p = Number(data?.lateral_progress) || 0
   const progressPct = Math.round(p * 100)
-  const elapsed = (Date.now() - startRef.current) / 1000
+  const elapsed = started ? (Date.now() - startRef.current) / 1000 : 0
+
+  // Reset the session clock the moment the countdown finishes so "GO" feels
+  // like the real start.
+  useEffect(() => {
+    if (started) startRef.current = Date.now()
+  }, [started])
 
   useEffect(() => {
+    if (!startedRef.current) return
+    if (axisZ <= AXIS_Z_TOO_HIGH) {
+      const now = Date.now()
+      if (now - lastTooHighRef.current > TOO_HIGH_COOLDOWN_MS) {
+        lastTooHighRef.current = now
+        setTooHigh(true)
+        setLives(prev => Math.max(0, prev - 1))
+        setTimeout(() => setTooHigh(false), 1400)
+      }
+    }
+  }, [axisZ])
+
+  useEffect(() => {
+    if (!startedRef.current) return
     const phase = phaseRef.current
     const now = performance.now()
 
@@ -126,11 +158,25 @@ export default function LateralRaiseGame({ data, lives, violation, onFinish, sen
     })
   }
 
+  useEffect(() => {
+    if (lives <= 0) handleFinish()
+    // handleFinish closes over latest refs/state — fine to omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lives])
+
+  useEffect(() => {
+    if (!started) return
+    const t = setTimeout(handleFinish, GAME_MS)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started])
+
   const qualityPct = reps > 0 ? Math.round((goodReps / reps) * 100) : 0
 
   return (
     <div className="lr-root">
-      {violation && <div className="lr-violation">Warning: {violation.message}</div>}
+      {tooHigh && <div className="lr-violation">Too high! Lower your arm — beyond safe range</div>}
+      {!tooHigh && violation && <div className="lr-violation">Warning: {violation.message}</div>}
 
       <div className="lr-card">
         <div className="lr-head">
@@ -141,7 +187,7 @@ export default function LateralRaiseGame({ data, lives, violation, onFinish, sen
         {flash && <div className="lr-flash">{flash}</div>}
 
         <div className="lr-main">
-          <div className="lr-meter-wrap">
+          <div className="lr-meter-wrap" style={{ position: 'relative' }}>
             <div className="lr-meter">
               <div className="lr-band" style={{ bottom: `${BAND_LOW * 100}%`, height: `${(BAND_HIGH - BAND_LOW) * 100}%` }} />
               <div className="lr-over" style={{ bottom: `${OVER_RAISE * 100}%` }} />
@@ -149,6 +195,7 @@ export default function LateralRaiseGame({ data, lives, violation, onFinish, sen
             </div>
             <div className="lr-pct">{progressPct}%</div>
             <div className="lr-hint">Target: shoulder-height band (Z-axis only)</div>
+            <CountdownOverlay value={countdownValue} compact />
           </div>
 
           <div className="lr-stats">

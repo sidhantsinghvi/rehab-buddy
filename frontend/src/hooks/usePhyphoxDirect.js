@@ -100,6 +100,10 @@ export function usePhyphoxDirect(initialHost = '') {
     lateralCalibReps: 0, lateralInRep: false,
     lateralRepPeaks: [], lateralPeakDev: 0,
     lateralDirCaptured: false, lateralTopIsMaxZ: false,
+    // Game-time rest re-anchor: the phone's orientation drifts between
+    // calibration and gameplay, so we sample a fresh resting baseline at
+    // session start and treat that as the new 0% point.
+    lateralGameRestSamples: [], lateralGameRestZ: null,
 
     // speed tracking
     prevAccY: null, prevAccZ: null, prevTime: null,
@@ -297,24 +301,32 @@ export function usePhyphoxDirect(initialHost = '') {
     const smth = s.smoothed
 
     // Lateral progress (accZ, instant — no extra EMA).
-    // Phone-on-forearm Z direction is inverted relative to our raise convention:
-    // calibration treats peak deviation as "top", but the resulting 0→1 mapping
-    // ends up reading 1 at arm-down and 0 at arm-up. Flip at the end so 0 = arm
-    // down (rest) and 1 = arm fully raised across all four lateral games.
-    let lateralProgress = 0
-    if (s.lateralRestZ !== null && s.lateralTopZ !== null) {
-      const r = s.lateralRestZ, T = s.lateralTopZ
-      const lo = Math.min(r, T), hi = Math.max(r, T)
-      const range = hi - lo
-      if (range >= 0.2) {
-        lateralProgress = T > r
-          ? Math.max(0, Math.min(1, (accZ - lo) / range))
-          : Math.max(0, Math.min(1, (hi - accZ) / range))
+    // Re-anchor the rest reading at game start: phone orientation drifts
+    // between calibration and gameplay, so the calibrated lateralRestZ is
+    // not reliable as the 0% point. We average the first samples of the
+    // session as the live rest, and keep the calibrated top side for range.
+    if (s.lateralGameRestSamples.length < REST_SAMPLES_NEEDED) {
+      s.lateralGameRestSamples.push(accZ)
+      if (s.lateralGameRestSamples.length === REST_SAMPLES_NEEDED) {
+        s.lateralGameRestZ = s.lateralGameRestSamples.reduce((a, b) => a + b, 0) / s.lateralGameRestSamples.length
       }
-      lateralProgress = 1 - lateralProgress
+    }
+
+    let lateralProgress = 0
+    const restZ = s.lateralGameRestZ ?? s.lateralRestZ
+    if (restZ !== null && s.lateralTopZ !== null) {
+      const r = restZ, T = s.lateralTopZ
+      const range = Math.abs(T - r)
+      if (range >= 0.2) {
+        // Direction comes from calibration so the sign is stable even when
+        // r drifted between calibration and now.
+        lateralProgress = s.lateralTopIsMaxZ
+          ? Math.max(0, Math.min(1, (accZ - r) / range))
+          : Math.max(0, Math.min(1, (r - accZ) / range))
+      }
     } else {
       // fallback before calibration: arm down ≈ 0, arm up ≈ 1.
-      lateralProgress = Math.max(0, Math.min(1, accZ / 20))
+      lateralProgress = Math.max(0, Math.min(1, Math.abs(accZ) / 8))
     }
 
     // Rep state machine (bicep & tricep only — lateral games handle their own reps)
@@ -401,6 +413,12 @@ export function usePhyphoxDirect(initialHost = '') {
       if (currentPhase === 'calibrating') {
         if (exerciseRef.current === 'lateral') processLateralCalibration(accZ)
         else processBicepCalibration(accY)
+        // processGame is what flips data.sensorConnected to true; in the
+        // calibrating phase we still need the badge to read "Live", so
+        // mark connected here when the calibration helpers are running.
+        setData(prev => (prev.connected && prev.sensorConnected)
+          ? prev
+          : { ...prev, connected: true, sensorConnected: true })
       } else {
         checkViolations(accY, now)
         processGame(accY, accZ)
@@ -444,6 +462,8 @@ export function usePhyphoxDirect(initialHost = '') {
 
   const startGame = useCallback(() => {
     sp.current.sessionStart = Date.now()
+    sp.current.lateralGameRestSamples = []
+    sp.current.lateralGameRestZ = null
     prevRepCount.current = 0
     setGamePhase('gaming')
   }, [])
@@ -455,6 +475,7 @@ export function usePhyphoxDirect(initialHost = '') {
     s.score = 0; s.repPeak = 0; s.lastRepQuality = 0; s.peakAngle = 0
     s.sessionStart = Date.now()
     s.lives = MAX_LIVES; s.lastViolationTime = 0
+    s.lateralGameRestSamples = []; s.lateralGameRestZ = null
     prevRepCount.current = 0
     setLives(MAX_LIVES); setViolation(null); setData(INITIAL_DATA)
   }, [])
@@ -472,6 +493,7 @@ export function usePhyphoxDirect(initialHost = '') {
     s.lateralCalibReps = 0; s.lateralInRep = false; s.lateralRepPeaks = []
     s.lateralPeakDev = 0
     s.lateralDirCaptured = false; s.lateralTopIsMaxZ = false
+    s.lateralGameRestSamples = []; s.lateralGameRestZ = null
     setCalibReps(0); setCalibStatus('collecting_rest'); setLimits(null)
     setGamePhase('calibrating')
   }, [])
